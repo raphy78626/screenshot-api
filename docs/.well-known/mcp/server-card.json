@@ -1,0 +1,70 @@
+{
+  "name": "screenshot-api-mcp",
+  "version": "1.0.0",
+  "description": "Give your AI agent eyes. MCP-native screenshot API for Claude, Cursor, and agent frameworks. One tool call returns a screenshot your agent can actually see.",
+  "tools": [
+    {
+      "name": "take_screenshot",
+      "description": "Capture any public URL as a PNG or JPEG screenshot using a real Chromium browser (JS rendered, stealth mode, full-page support). Returns base64-encoded image data the agent can view directly.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Public URL to capture (http/https only)"
+          },
+          "format": {
+            "type": "string",
+            "enum": ["png", "jpeg"],
+            "default": "png",
+            "description": "Image format"
+          },
+          "fullPage": {
+            "type": "boolean",
+            "default": false,
+            "description": "Capture the full scrollable page"
+          },
+          "width": {
+            "type": "number",
+            "default": 1280,
+            "description": "Viewport width in pixels (320-3840)"
+          }
+        },
+        "required": ["url"]
+      }
+    },
+    {
+      "name": "describe_page",
+      "description": "Take a screenshot of a URL and return it along with the page title, first H1, and meta description — all in one call. Saves an extra round-trip for the common 'what is on this page?' task.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Public URL to capture and describe"
+          },
+          "width": {
+            "type": "number",
+            "default": 1280,
+            "description": "Viewport width in pixels"
+          }
+        },
+        "required": ["url"]
+      }
+    },
+    {
+      "name": "capture_pdf",
+      "description": "Render any public URL as a print-ready A4 PDF using a real Chromium browser.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Public URL to render as PDF"
+          }
+        },
+        "required": ["url"]
+      }
+    }
+  ]
+}

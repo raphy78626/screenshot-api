@@ -117,6 +117,11 @@ export async function buildApp(overrides?: Partial<typeof config>) {
     browserConnected: browser?.isConnected() ?? false,
   }))
 
+  app.get('/.well-known/mcp/server-card.json', async (_, reply) => {
+    reply.header('Access-Control-Allow-Origin', '*')
+    return reply.sendFile('.well-known/mcp/server-card.json')
+  })
+
   app.post<{ Body: { email?: string } }>('/waitlist', {
     schema: { body: { type: 'object', properties: { email: { type: 'string' } } } },
   }, async (req, reply) => {
