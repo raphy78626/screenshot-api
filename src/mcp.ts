@@ -1,6 +1,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import { chromium, type Browser } from 'playwright'
+import { chromium as chromiumExtra } from 'playwright-extra'
+import StealthPlugin from 'puppeteer-extra-plugin-stealth'
+import { type Browser } from 'playwright'
+chromiumExtra.use(StealthPlugin())
 import { lookup } from 'node:dns/promises'
 import { z } from 'zod'
 
@@ -33,7 +36,7 @@ async function isAllowedUrl(raw: string): Promise<{ ok: boolean; reason?: string
 let browser: Browser | null = null
 async function getBrowser(): Promise<Browser> {
   if (!browser || !browser.isConnected()) {
-    browser = await chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] })
+    browser = await chromiumExtra.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] }) as unknown as Browser
   }
   return browser
 }

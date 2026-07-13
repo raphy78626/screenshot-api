@@ -1,7 +1,10 @@
 import Fastify from 'fastify'
 import fastifyStatic from '@fastify/static'
 import rateLimit from '@fastify/rate-limit'
-import { chromium, type Browser, errors as playwrightErrors } from 'playwright'
+import { chromium as chromiumExtra } from 'playwright-extra'
+import StealthPlugin from 'puppeteer-extra-plugin-stealth'
+import { errors as playwrightErrors, type Browser } from 'playwright'
+chromiumExtra.use(StealthPlugin())
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { lookup } from 'node:dns/promises'
@@ -43,10 +46,30 @@ let browser: Browser | null = null
 
 async function getBrowser(): Promise<Browser> {
   if (!browser || !browser.isConnected()) {
-    browser = await chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] })
+    browser = await chromiumExtra.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] }) as unknown as Browser
   }
   return browser
 }
+
+// ── Response cache (5 min TTL, skipped for PDF) ───────────────────────────────
+const CACHE_TTL = 5 * 60 * 1000
+const cache = new Map<string, { buf: Buffer; mime: string; ts: number }>()
+
+function cacheKey(url: string, fmt: string, w: number, h: number, full: boolean) {
+  return `${url}|${fmt}|${w}|${h}|${full}`
+}
+
+function cacheGet(key: string) {
+  const hit = cache.get(key)
+  if (!hit) return null
+  if (Date.now() - hit.ts > CACHE_TTL) { cache.delete(key); return null }
+  return hit
+}
+
+setInterval(() => {
+  const now = Date.now()
+  for (const [k, v] of cache) if (now - v.ts > CACHE_TTL) cache.delete(k)
+}, CACHE_TTL).unref()
 
 interface ScreenshotQuery {
   url?: string
@@ -109,6 +132,18 @@ export async function buildApp(overrides?: Partial<typeof config>) {
     const vpWidth = Math.min(Math.max(parseInt(width) || 1280, 320), 3840)
     const vpHeight = Math.min(Math.max(parseInt(height) || 800, 200), 2160)
 
+    // Cache hit — PDFs are not cached (they're large + rarely repeated)
+    const key = fmt !== 'pdf' ? cacheKey(url, fmt, vpWidth, vpHeight, fullPage) : null
+    if (key) {
+      const hit = cacheGet(key)
+      if (hit) {
+        reply.header('Content-Type', hit.mime)
+        reply.header('X-Cache', 'HIT')
+        reply.header('Access-Control-Allow-Origin', '*')
+        return reply.send(hit.buf)
+      }
+    }
+
     if (limit.pendingCount > 10) {
       return reply.status(503).send({ error: 'Server busy, try again shortly' })
     }
@@ -132,10 +167,12 @@ export async function buildApp(overrides?: Partial<typeof config>) {
             await page.screenshot({ type: fmt, fullPage, quality: fmt === 'jpeg' ? 85 : undefined })
           )
           mime = fmt === 'jpeg' ? 'image/jpeg' : 'image/png'
+          if (key) cache.set(key, { buf: data, mime, ts: Date.now() })
         }
 
         reply.header('Content-Type', mime)
         reply.header('X-Capture-Ms', String(Date.now() - start))
+        reply.header('X-Cache', 'MISS')
         reply.header('Access-Control-Allow-Origin', '*')
         return reply.send(data)
       } finally {
