@@ -1,0 +1,41 @@
+# Run `fly launch --no-deploy` to create your app, then `fly deploy`.
+# Set your proxy secret before deploying:
+#   fly secrets set PROXY_SECRET=$(openssl rand -hex 24)
+
+app = "screenshot-api"
+primary_region = "iad"
+
+# Give in-flight screenshots time to finish before the process is killed
+kill_timeout = 30
+
+[build]
+  # Dockerfile is autodetected
+
+[env]
+  PORT = "8080"
+  HOST = "0.0.0.0"
+  MAX_CONCURRENCY = "2"
+  LOG_LEVEL = "info"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  # Set to 1 once listed on RapidAPI — cold-start hurts marketplace ratings
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  # WARNING: 256MB (Fly default) WILL OOM Chromium.
+  # 1GB + MAX_CONCURRENCY=2 is the minimum viable config.
+  # Use 512MB only with MAX_CONCURRENCY=1.
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "screenshot-api": {
+      "command": "npx",
+      "args": ["tsx", "/Users/rahil78626/Projects/screenshot-api/src/mcp.ts"]
+    }
+  }
+}
