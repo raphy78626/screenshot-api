@@ -13,7 +13,7 @@ import pLimit from 'p-limit'
 import { config } from './config.ts'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
-const PUBLIC_DIR = resolve(__dirname, '../public')
+const PUBLIC_DIR = resolve(__dirname, '../docs')
 
 const PRIVATE_IP = /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|0\.|::1|fc00:|fd)/i
 const BLOCKED_HOSTS = new Set(['localhost', 'metadata.google.internal', 'metadata', '169.254.169.254'])
