@@ -1,19 +1,42 @@
 {
-  "name": "screenshot-api",
+  "name": "screenshot-api-mcp",
   "version": "1.0.0",
-  "description": "URL → screenshot/PDF capture API",
-  "main": "index.js",
+  "description": "URL → PNG/JPEG/PDF capture API + MCP server for AI agents (Claude, Cursor, Copilot)",
   "type": "module",
+  "bin": {
+    "screenshot-api-mcp": "src/mcp-bin.ts"
+  },
+  "files": [
+    "src/",
+    "public/",
+    "tsconfig.json"
+  ],
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "mcp": "tsx src/mcp.ts"
+    "mcp": "tsx src/mcp.ts",
+    "prepublishOnly": "npm run typecheck"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "mcp",
+    "screenshot",
+    "playwright",
+    "ai-agent",
+    "model-context-protocol",
+    "screenshot-api",
+    "pdf",
+    "claude",
+    "cursor"
+  ],
+  "author": "raphy78626",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/raphy78626/screenshot-api.git"
+  },
+  "homepage": "https://github.com/raphy78626/screenshot-api#readme",
+  "license": "MIT",
   "dependencies": {
     "@fastify/rate-limit": "^10.0.0",
     "@fastify/static": "^9.3.0",

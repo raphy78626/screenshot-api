@@ -18,14 +18,14 @@ The MCP server lets Claude Desktop, Cursor, and any MCP-compatible agent call sc
 ### Add to Claude Desktop
 
 1. Open `~/Library/Application Support/Claude/claude_desktop_config.json`
-2. Add the `screenshot-api` entry (adjust the path to where you cloned this repo):
+2. Add:
 
 ```json
 {
   "mcpServers": {
     "screenshot-api": {
       "command": "npx",
-      "args": ["tsx", "/absolute/path/to/screenshot-api/src/mcp.ts"]
+      "args": ["-y", "screenshot-api-mcp"]
     }
   }
 }
@@ -33,22 +33,29 @@ The MCP server lets Claude Desktop, Cursor, and any MCP-compatible agent call sc
 
 3. Restart Claude Desktop — the tools appear automatically.
 
-Then just ask Claude: *"Take a screenshot of https://example.com"* or *"Describe what's on https://github.com"*
+Then ask Claude: *"Take a screenshot of https://example.com"* or *"Describe what's on https://github.com"*
 
 ### Add to Cursor
 
-In Cursor Settings → MCP → add server:
+Settings → MCP → Add Server:
 ```json
 {
   "name": "screenshot-api",
-  "command": "npx tsx /absolute/path/to/screenshot-api/src/mcp.ts"
+  "command": "npx",
+  "args": ["-y", "screenshot-api-mcp"]
 }
+```
+
+### Install via npm
+
+```bash
+npm install -g screenshot-api-mcp
 ```
 
 ### Run standalone
 
 ```bash
-npm run mcp
+npx screenshot-api-mcp
 ```
 
 ## API
