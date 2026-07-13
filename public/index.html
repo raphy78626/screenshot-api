@@ -477,11 +477,22 @@ tools = <span class="kw">await</span> client.<span class="fn">get_tools</span>()
       })
     }
 
-    // Waitlist — stores locally + opens Tally fallback
-    function recordSignup(email) {
-      const key = 'wl_' + Date.now()
-      try { localStorage.setItem(key, JSON.stringify({ email, ts: new Date().toISOString() })) } catch (_) {}
-      // POST to a simple endpoint if server is running; silently fail if not
+    // Replace with your Formspree form ID: https://formspree.io → New Form → copy the ID
+    const FORMSPREE_ID = 'YOUR_FORM_ID'
+
+    async function recordSignup(email) {
+      // 1. Formspree (works on static hosts like GitHub Pages)
+      if (FORMSPREE_ID !== 'YOUR_FORM_ID') {
+        try {
+          await fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ email })
+          })
+          return
+        } catch (_) {}
+      }
+      // 2. Local/Fly server fallback
       fetch('/waitlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

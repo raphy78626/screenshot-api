@@ -8,6 +8,7 @@ chromiumExtra.use(StealthPlugin())
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { lookup } from 'node:dns/promises'
+import { appendFile } from 'node:fs/promises'
 import pLimit from 'p-limit'
 import { config } from './config.ts'
 
@@ -99,10 +100,11 @@ export async function buildApp(overrides?: Partial<typeof config>) {
 
   app.register(fastifyStatic, { root: PUBLIC_DIR, prefix: '/' })
 
-  // Proxy-secret guard: keeps direct callers from bypassing RapidAPI billing
+  // Proxy-secret guard: keeps direct callers from bypassing billing
   app.addHook('onRequest', async (req, reply) => {
     if (!cfg.proxySecret) return
-    if (req.url === '/health' || req.url === '/') return
+    const pub = ['/health', '/', '/waitlist']
+    if (pub.some(p => req.url === p || req.url.startsWith(p + '?'))) return
     const secret =
       req.headers['x-rapidapi-proxy-secret'] ?? req.headers['x-proxy-secret']
     if (secret !== cfg.proxySecret) {
@@ -114,6 +116,19 @@ export async function buildApp(overrides?: Partial<typeof config>) {
     status: 'ok',
     browserConnected: browser?.isConnected() ?? false,
   }))
+
+  app.post<{ Body: { email?: string } }>('/waitlist', {
+    schema: { body: { type: 'object', properties: { email: { type: 'string' } } } },
+  }, async (req, reply) => {
+    const email = req.body?.email?.trim()
+    if (!email || !email.includes('@')) {
+      return reply.status(400).send({ error: 'valid email required' })
+    }
+    const line = JSON.stringify({ email, ts: new Date().toISOString() }) + '\n'
+    await appendFile('waitlist.jsonl', line, 'utf8')
+    req.log.info({ email }, 'waitlist signup')
+    return reply.status(200).send({ ok: true })
+  })
 
   const limit = pLimit(cfg.maxConcurrency)
 
