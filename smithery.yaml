@@ -10,18 +10,20 @@ startCommand:
         type: string
         description: >
           Shared secret required on X-Proxy-Secret header. Leave empty to
-          disable auth (local / dev use). Set this in production to prevent
-          callers bypassing billing.
+          disable auth (local / dev use).
       MAX_CONCURRENCY:
         type: number
-        description: Max simultaneous Playwright browser contexts (default 2). Lower on memory-constrained hosts.
+        description: Max simultaneous Playwright browser contexts (default 2).
       NAV_TIMEOUT_MS:
         type: number
         description: Page navigation timeout in milliseconds (default 20000).
   commandFunction: |-
     (config) => ({
       command: 'npx',
-      args: ['tsx', 'src/mcp.ts'],
+      args: [
+        '-y',
+        'screenshot-api-mcp'
+      ],
       env: {
         ...(config.PROXY_SECRET ? { PROXY_SECRET: config.PROXY_SECRET } : {}),
         ...(config.MAX_CONCURRENCY ? { MAX_CONCURRENCY: String(config.MAX_CONCURRENCY) } : {}),
