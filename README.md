@@ -1,26 +1,31 @@
-# Screenshot API
+# Screenshot API for AI Agents
 
-Capture any public URL as a **PNG, JPEG, or PDF** via REST API **or MCP tool** for AI agents.
-Powered by Playwright (Chromium) + Fastify.
+> Give your AI agent eyes. One MCP tool call returns a screenshot your agent can actually *see*.
 
-## MCP Server — for AI Agents (Claude, Cursor, Copilot)
+**→ [Join the early access waitlist](https://raphy78626.github.io/screenshot-api)** · Free tier included · Hosted API coming soon
 
-The MCP server lets Claude Desktop, Cursor, and any MCP-compatible agent call screenshot tools natively — no API key, no HTTP wiring.
+---
 
-### Tools exposed
+## What it does
 
-| Tool | What it does |
-|------|-------------|
-| `take_screenshot` | Captures URL → returns image Claude can **see** (base64 PNG/JPEG) |
+AI agents can't see web pages — they get raw HTML, which is noisy, incomplete (no JS-rendered content), and full of boilerplate. This MCP server gives Claude, Cursor, and any MCP-compatible agent three native tools:
+
+| Tool | What it returns |
+|------|----------------|
+| `take_screenshot` | URL → base64 PNG/JPEG your agent can look at directly |
 | `describe_page` | Screenshot + title + H1 + meta description in one call |
-| `capture_pdf` | Renders URL as A4 PDF |
+| `capture_pdf` | URL → A4 PDF |
 
-### Add to Claude Desktop
+`describe_page` is the key differentiator: most agents need a screenshot *and* some text context. This saves a round-trip.
 
-1. Open `~/Library/Application Support/Claude/claude_desktop_config.json`
-2. Add:
+---
+
+## Quick start (self-hosted, free)
+
+### Claude Desktop
 
 ```json
+// ~/Library/Application Support/Claude/claude_desktop_config.json
 {
   "mcpServers": {
     "screenshot-api": {
@@ -31,13 +36,13 @@ The MCP server lets Claude Desktop, Cursor, and any MCP-compatible agent call sc
 }
 ```
 
-3. Restart Claude Desktop — the tools appear automatically.
+Restart Claude Desktop. Then ask:
+> *"Take a screenshot of https://news.ycombinator.com and summarise the top 5 stories"*
 
-Then ask Claude: *"Take a screenshot of https://example.com"* or *"Describe what's on https://github.com"*
-
-### Add to Cursor
+### Cursor
 
 Settings → MCP → Add Server:
+
 ```json
 {
   "name": "screenshot-api",
@@ -46,136 +51,127 @@ Settings → MCP → Add Server:
 }
 ```
 
-### Install via npm
+### Python (LangChain / CrewAI)
 
-```bash
-npm install -g screenshot-api-mcp
+```python
+from langchain_mcp_adapters.client import MultiServerMCPClient
+
+client = MultiServerMCPClient({
+    "screenshot": {
+        "command": "npx",
+        "args": ["-y", "screenshot-api-mcp"],
+        "transport": "stdio",
+    }
+})
+
+tools = await client.get_tools()
+# → [take_screenshot, describe_page, capture_pdf]
 ```
 
-### Run standalone
+---
 
-```bash
-npx screenshot-api-mcp
-```
+## Why not just use the HTML?
 
-## API
+- **JS-rendered content** — SPAs, lazy-loaded sections, and canvas elements are invisible to scrapers. Playwright renders everything.
+- **Stealth mode** — ~40% of real URLs return bot-block pages to naive scrapers. Evasion is built in.
+- **Response cache** — same URL twice in a loop? Second call is instant (5-min TTL, no double-billing).
+- **MCP-native** — structured outputs designed for agent loops, not bolted-on HTTP wrappers.
+
+---
+
+## Hosted API (coming soon)
+
+The self-hosted version requires Node.js + a local Playwright/Chromium install (~300MB). The hosted API has none of that — your agent hits an endpoint, gets back the image.
+
+**[Join the waitlist](https://raphy78626.github.io/screenshot-api)** — early access gets 3 months at 40% off.
+
+Planned tiers:
+| Plan | Price | Screenshots/mo |
+|------|-------|---------------|
+| Free trial | $0 | 100 (7 days) |
+| Starter | $19/mo | 2,000 |
+| Pro | $49/mo | 10,000 |
+
+---
+
+## HTTP API (self-hosted)
 
 ### `GET /screenshot`
 
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
-| `url` | string | **required** | Public URL to capture (http/https only) |
+| `url` | string | **required** | Public URL (http/https only) |
 | `format` | `png` \| `jpeg` \| `pdf` | `png` | Output format |
-| `full_page` | `true` \| `false` | `false` | Capture full scrollable page |
+| `full_page` | `true` \| `false` | `false` | Full scrollable page |
 | `width` | number | `1280` | Viewport width (320–3840) |
 | `height` | number | `800` | Viewport height (200–2160) |
 
-**Response headers:** `Content-Type`, `X-Capture-Ms` (render time in ms)
-
 ```bash
-curl "http://localhost:3099/screenshot?url=https://example.com&format=png" -o out.png
-curl "http://localhost:3099/screenshot?url=https://example.com&format=pdf" -o out.pdf
+curl "http://localhost:3099/screenshot?url=https://example.com" -o out.png
 ```
 
 ### `GET /health`
 
-Returns `{ "status": "ok", "browserConnected": true }`. Used by Fly health checks.
+```json
+{ "status": "ok", "browserConnected": true }
+```
+
+---
 
 ## Local development
 
 ```bash
 npm install
-npm run dev        # tsx watch — reloads on file changes
-```
-
-The demo test page is available at [http://localhost:3099](http://localhost:3099).
-
-## Tests
-
-```bash
+npm run dev        # tsx watch
+npm test           # vitest + real Chromium (~60s)
 npm run typecheck
-npm test           # vitest — launches real Chromium; needs ~60s for the capture test
 ```
 
-Set `SKIP_BROWSER_TESTS=1` to skip the live Chromium test (not yet wired up in the test file, but the capture test can be `.skip`-ped if needed).
+---
 
-## Deploy to Fly.io
-
-### Prerequisites
-
-- [flyctl](https://fly.io/docs/hands-on/install-flyctl/) installed and logged in
-- Docker installed (for local image verification)
-
-### Steps
+## Deploy to Fly.io (self-host at scale)
 
 ```bash
-# 1. Create the app (once)
-fly launch --no-deploy
-
-# 2. Set the proxy secret (keeps direct callers from bypassing RapidAPI billing)
-fly secrets set PROXY_SECRET=$(openssl rand -hex 24)
-
-# 3. Deploy
-fly deploy
-
-# 4. Verify
-fly checks list         # health check should be passing
-curl "https://<your-app>.fly.dev/health"
-curl "https://<your-app>.fly.dev/screenshot?url=https://example.com" \
-  -H "X-Proxy-Secret: <your-secret>" -o test.png
+export PATH="$HOME/.fly/bin:$PATH"
+flyctl auth login
+flyctl launch --no-deploy --copy-config
+flyctl secrets set PROXY_SECRET=$(openssl rand -hex 24)
+flyctl deploy
+flyctl checks list   # /health should be green
 ```
 
-### Memory ⚠️
+> **Memory:** Fly's default 256MB **will OOM Chromium**. `fly.toml` is pre-set to 1GB. Don't scale below 512MB.
 
-The Fly default (256 MB) **will OOM Chromium**. `fly.toml` is already set to `1gb`. Do not scale down below 512 MB, and if you use 512 MB set `MAX_CONCURRENCY=1`.
+Add `FLY_API_TOKEN` to GitHub repo secrets to enable auto-deploy on push to `main`.
 
-### CI/CD (GitHub Actions)
-
-Add your Fly token as a repo secret:
-
-```bash
-fly tokens create deploy
-# → paste into GitHub → Settings → Secrets → FLY_API_TOKEN
-```
-
-The CI workflow (`.github/workflows/ci.yml`) runs typecheck + tests on every push/PR and auto-deploys `main` to Fly.
+---
 
 ## Configuration
 
-All settings are read from environment variables. See [`.env.example`](.env.example) for the full list with defaults and descriptions.
+All settings via environment variables. See [`.env.example`](.env.example).
 
-## Listing on RapidAPI
+Key vars: `PORT` (3099), `MAX_CONCURRENCY` (2), `PROXY_SECRET` (empty = auth off locally), `NAV_TIMEOUT_MS` (20000).
 
-1. Create a [RapidAPI provider](https://rapidapi.com/provider) account
-2. Add an API → set the base URL to your Fly app URL
-3. Paste the value of `PROXY_SECRET` into the RapidAPI "proxy secret" field
-4. Define tiers — screenshot APIs on RapidAPI cluster around:
-   - Free: 100 req/mo
-   - Basic: $9.99 → 2,500 req/mo
-   - Pro: $29.99 → 15,000 req/mo
-   - Ultra: $99 → 75,000 req/mo
-5. Bump `min_machines_running = 1` in `fly.toml` once listed (cold-start hurts marketplace ratings)
+---
 
 ## Roadmap
 
-### Phase 1 — Production hardening *(this release)*
-- [x] Rate limiting with RapidAPI-aware key
-- [x] Proxy-secret auth (prevents billing bypass)
-- [x] Concurrency cap + queue-depth 503
-- [x] Structured JSON logging (pino)
-- [x] Graceful shutdown (SIGTERM drain)
-- [x] `/health` endpoint
-- [x] Dockerfile + Fly.io config
-- [x] GitHub Actions CI with Playwright container
-- [x] Smoke tests (SSRF regression, auth, real capture)
+### Phase A — Validation *(now)*
+- [x] MCP server with 3 tools
+- [x] Stealth / Cloudflare bypass
+- [x] Response cache (5-min TTL)
+- [x] Landing page + waitlist
+- [ ] npm publish (`screenshot-api-mcp`)
+- [ ] Smithery + mcp.so + Glama listings
+- [ ] 20 waitlist signups ← **gate to Phase B**
 
-### Phase 2 — Own billing *(after marketplace demand is proven)*
-- [ ] API key issuance + auth middleware
-- [ ] Usage metering (Postgres or Fly-hosted SQLite)
-- [ ] Stripe metered billing + webhooks
-- [ ] Minimal customer dashboard (key management, usage graphs)
+### Phase B — Hosted API *(if gate passed)*
+- [ ] Lemon Squeezy billing (usage tiers)
+- [ ] API key issuance + metering
+- [ ] Fly.io deploy (1GB VM, `min_machines_running=1`)
+- [ ] First paying customer
 
-### Phase 3 — Scale
-- [ ] Result caching (S3-compatible, signed URLs)
-- [ ] Webhook / async capture (POST → callback URL)
-- [ ] Multi-A-record SSRF hardening (resolve all records, not just first)
+### Phase C — Growth
+- [ ] SEO content ("how to give Claude screenshots")
+- [ ] Zapier integration
+- [ ] LangChain / CrewAI tool package

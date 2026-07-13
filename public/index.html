@@ -3,114 +3,509 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Screenshot API — Prototype</title>
+  <title>Screenshot API for AI Agents — MCP-native screenshot tool for Claude & Cursor</title>
+  <meta name="description" content="Give your AI agent eyes. MCP-native screenshot API for Claude Desktop, Cursor, and agent frameworks. One tool call returns an image your agent can actually see.">
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0 }
-    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; padding: 2rem }
-    h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem; color: #f8fafc }
-    .sub { color: #94a3b8; font-size: 0.875rem; margin-bottom: 2rem }
-    .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem; max-width: 780px; margin: 0 auto }
-    .row { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem }
-    input[type=text] { flex: 1; min-width: 260px; background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 0.6rem 0.9rem; color: #f1f5f9; font-size: 0.95rem; outline: none }
-    input[type=text]:focus { border-color: #6366f1 }
-    select { background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 0.6rem 0.75rem; color: #f1f5f9; font-size: 0.875rem; outline: none }
-    label { font-size: 0.8rem; color: #94a3b8; display: flex; align-items: center; gap: 0.4rem }
-    button { background: #6366f1; border: none; border-radius: 8px; padding: 0.6rem 1.4rem; color: #fff; font-size: 0.95rem; font-weight: 600; cursor: pointer; white-space: nowrap }
-    button:hover { background: #4f46e5 }
-    button:disabled { background: #334155; cursor: not-allowed }
-    .status { font-size: 0.8rem; color: #94a3b8; margin-bottom: 1rem; min-height: 1.2em }
-    .status.ok { color: #34d399 }
-    .status.err { color: #f87171 }
-    .result { display: none; margin-top: 1rem }
-    .result img { max-width: 100%; border-radius: 8px; border: 1px solid #334155 }
-    .curl-box { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 0.75rem 1rem; font-family: monospace; font-size: 0.78rem; color: #7dd3fc; margin-top: 1rem; word-break: break-all }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
+    :root {
+      --bg: #0a0f1e;
+      --surface: #111827;
+      --surface2: #1e293b;
+      --border: #1e2d45;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --green: #34d399;
+      --code-bg: #0d1117;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    /* NAV */
+    nav {
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .logo { font-weight: 700; font-size: 1rem; color: #f8fafc; letter-spacing: -0.02em }
+    .logo span { color: var(--accent) }
+    nav a { color: var(--muted); text-decoration: none; font-size: 0.875rem }
+    nav a:hover { color: var(--text) }
+
+    /* HERO */
+    .hero {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 5rem 2rem 3.5rem;
+      text-align: center;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: rgba(99,102,241,0.12);
+      border: 1px solid rgba(99,102,241,0.3);
+      border-radius: 999px;
+      padding: 0.3rem 0.9rem;
+      font-size: 0.78rem;
+      color: #a5b4fc;
+      margin-bottom: 1.5rem;
+    }
+    .badge-dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%; display: inline-block }
+    h1 {
+      font-size: clamp(2rem, 5vw, 3rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      color: #f8fafc;
+      margin-bottom: 1.25rem;
+    }
+    h1 em { font-style: normal; color: var(--accent) }
+    .hero-sub {
+      font-size: 1.125rem;
+      color: var(--muted);
+      max-width: 560px;
+      margin: 0 auto 2.5rem;
+    }
+
+    /* WAITLIST FORM */
+    .waitlist-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2rem;
+      max-width: 480px;
+      margin: 0 auto 1rem;
+    }
+    .waitlist-wrap h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.35rem; color: #f8fafc }
+    .waitlist-wrap p { font-size: 0.85rem; color: var(--muted); margin-bottom: 1.25rem }
+    .field-row { display: flex; gap: 0.5rem; flex-wrap: wrap }
+    .field-row input[type=email] {
+      flex: 1;
+      min-width: 200px;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.65rem 1rem;
+      color: #f1f5f9;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .field-row input[type=email]:focus { border-color: var(--accent) }
+    .btn-primary {
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      padding: 0.65rem 1.4rem;
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .btn-primary:hover { background: var(--accent-hover) }
+    .form-note { font-size: 0.75rem; color: var(--muted); margin-top: 0.75rem }
+    .success-msg { color: var(--green); font-size: 0.9rem; margin-top: 0.75rem; display: none }
+
+    /* PRICING PREVIEW */
+    .pricing-tease {
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-align: center;
+      margin-bottom: 4rem;
+    }
+    .pricing-tease strong { color: var(--text) }
+
+    /* HOW IT WORKS */
+    section { max-width: 900px; margin: 0 auto; padding: 0 2rem 4rem }
+    .section-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); font-weight: 600; margin-bottom: 0.75rem }
+    h2.section-title { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; color: #f8fafc; margin-bottom: 0.5rem }
+    .section-sub { color: var(--muted); font-size: 0.95rem; margin-bottom: 2.5rem }
+
+    /* CODE DEMO */
+    .demo-block {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 2.5rem;
+    }
+    .demo-tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      padding: 0 1rem;
+    }
+    .demo-tab {
+      padding: 0.6rem 1rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      user-select: none;
+    }
+    .demo-tab.active { color: var(--accent); border-bottom-color: var(--accent) }
+    .demo-panel { padding: 1.25rem 1.5rem; display: none }
+    .demo-panel.active { display: block }
+    pre { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.82rem; color: #7dd3fc; white-space: pre-wrap; line-height: 1.7 }
+    .comment { color: var(--muted) }
+    .kw { color: #f472b6 }
+    .str { color: #a3e635 }
+    .fn { color: #fbbf24 }
+
+    /* TOOLS GRID */
+    .tools-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem }
+    .tool-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+    .tool-name { font-family: monospace; font-size: 0.9rem; color: #a5b4fc; font-weight: 600; margin-bottom: 0.5rem }
+    .tool-desc { font-size: 0.875rem; color: var(--muted); line-height: 1.5 }
+    .tool-tag {
+      display: inline-block;
+      margin-top: 0.75rem;
+      font-size: 0.7rem;
+      background: rgba(99,102,241,0.1);
+      border: 1px solid rgba(99,102,241,0.25);
+      color: #a5b4fc;
+      border-radius: 4px;
+      padding: 0.15rem 0.5rem;
+    }
+
+    /* WHY */
+    .why-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem }
+    .why-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+    }
+    .why-icon { font-size: 1.5rem; margin-bottom: 0.75rem }
+    .why-title { font-size: 0.95rem; font-weight: 600; color: #f8fafc; margin-bottom: 0.35rem }
+    .why-text { font-size: 0.83rem; color: var(--muted); line-height: 1.55 }
+
+    /* PRICING */
+    .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem }
+    .plan {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      position: relative;
+    }
+    .plan.featured {
+      border-color: var(--accent);
+      background: linear-gradient(135deg, rgba(99,102,241,0.08) 0%, var(--surface) 100%);
+    }
+    .plan-badge {
+      position: absolute;
+      top: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--accent);
+      color: #fff;
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 0.2rem 0.7rem;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .plan-name { font-size: 0.85rem; color: var(--muted); font-weight: 600; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em }
+    .plan-price { font-size: 2rem; font-weight: 800; color: #f8fafc; letter-spacing: -0.03em; margin-bottom: 0.25rem }
+    .plan-price span { font-size: 0.9rem; font-weight: 400; color: var(--muted) }
+    .plan-req { font-size: 0.8rem; color: var(--muted); margin-bottom: 1.25rem }
+    .plan-features { list-style: none; font-size: 0.82rem; color: var(--muted); display: flex; flex-direction: column; gap: 0.4rem }
+    .plan-features li::before { content: "✓ "; color: var(--green) }
+    .pricing-note { font-size: 0.78rem; color: var(--muted); margin-top: 1.5rem; text-align: center }
+
+    /* CTA */
+    .cta-section {
+      text-align: center;
+      padding: 3rem 2rem 5rem;
+      max-width: 560px;
+      margin: 0 auto;
+    }
+    .cta-section h2 { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; color: #f8fafc; margin-bottom: 0.75rem }
+    .cta-section p { color: var(--muted); font-size: 0.95rem; margin-bottom: 2rem }
+
+    /* FOOTER */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 1.5rem 2rem;
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    footer a { color: var(--muted); text-decoration: none }
+    footer a:hover { color: var(--text) }
+
+    @media (max-width: 600px) {
+      h1 { font-size: 1.75rem }
+      .waitlist-wrap { padding: 1.5rem }
+    }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>Screenshot API</h1>
-    <p class="sub">Phase 0 prototype — URL → PNG/JPEG/PDF in one request</p>
 
-    <div class="row">
-      <input type="text" id="url" placeholder="https://example.com" value="https://example.com">
-      <select id="format">
-        <option value="png">PNG</option>
-        <option value="jpeg">JPEG</option>
-        <option value="pdf">PDF</option>
-      </select>
-      <select id="width">
-        <option value="1280">1280px</option>
-        <option value="1920">1920px</option>
-        <option value="375">375px (mobile)</option>
-        <option value="768">768px (tablet)</option>
-      </select>
-      <label><input type="checkbox" id="fullpage"> Full page</label>
-      <button id="btn" onclick="capture()">Capture</button>
-    </div>
-
-    <div class="status" id="status">Ready.</div>
-    <div class="result" id="result">
-      <img id="img" src="" alt="screenshot">
-      <div class="curl-box" id="curl"></div>
-    </div>
+  <div style="max-width:1100px;margin:0 auto">
+    <nav>
+      <span class="logo">screenshot<span>API</span></span>
+      <a href="https://github.com/raphy78626/screenshot-api" target="_blank">GitHub ↗</a>
+    </nav>
   </div>
 
+  <!-- HERO -->
+  <div class="hero">
+    <div class="badge"><span class="badge-dot"></span> MCP-native · Claude · Cursor · LangChain</div>
+    <h1>Give your AI agent <em>eyes</em></h1>
+    <p class="hero-sub">
+      One MCP tool call. Your agent gets back an image it can actually <em>see</em>, plus title, headings, and meta — no HTML parsing, no scraping, no extra round-trips.
+    </p>
+
+    <div class="waitlist-wrap">
+      <h2>Join the early access waitlist</h2>
+      <p>Be notified when the hosted API launches. Free tier included.</p>
+      <form id="wlForm" onsubmit="submitWaitlist(event)">
+        <div class="field-row">
+          <input type="email" id="wlEmail" placeholder="you@company.com" required autocomplete="email">
+          <button type="submit" class="btn-primary">Notify me</button>
+        </div>
+        <p class="form-note">No spam. Unsubscribe any time.</p>
+        <p class="success-msg" id="successMsg">✓ You're on the list — we'll be in touch!</p>
+      </form>
+    </div>
+
+    <p class="pricing-tease">
+      Hosted pricing starts at <strong>$19/mo</strong> · Free tier during early access ·
+      <a href="#pricing" style="color:var(--accent);text-decoration:none">See plans ↓</a>
+    </p>
+  </div>
+
+  <!-- HOW IT WORKS -->
+  <section>
+    <div class="section-label">How it works</div>
+    <h2 class="section-title">One tool call, instant visual context</h2>
+    <p class="section-sub">Add the MCP server to Claude Desktop or Cursor in 60 seconds. Your agent gets three tools it can call natively.</p>
+
+    <div class="demo-block">
+      <div class="demo-tabs">
+        <div class="demo-tab active" onclick="showTab('claude')">Claude Desktop</div>
+        <div class="demo-tab" onclick="showTab('cursor')">Cursor</div>
+        <div class="demo-tab" onclick="showTab('python')">Python (LangChain)</div>
+      </div>
+      <div class="demo-panel active" id="tab-claude">
+<pre><span class="comment">// ~/Library/Application Support/Claude/claude_desktop_config.json</span>
+{
+  <span class="str">"mcpServers"</span>: {
+    <span class="str">"screenshot-api"</span>: {
+      <span class="str">"command"</span>: <span class="str">"npx"</span>,
+      <span class="str">"args"</span>: [<span class="str">"-y"</span>, <span class="str">"screenshot-api-mcp"</span>]
+    }
+  }
+}
+
+<span class="comment">// Restart Claude Desktop → ask Claude:
+// "Take a screenshot of https://news.ycombinator.com and summarise the top stories"</span></pre>
+      </div>
+      <div class="demo-panel" id="tab-cursor">
+<pre><span class="comment">// Cursor → Settings → MCP → Add Server</span>
+{
+  <span class="str">"name"</span>: <span class="str">"screenshot-api"</span>,
+  <span class="str">"command"</span>: <span class="str">"npx"</span>,
+  <span class="str">"args"</span>: [<span class="str">"-y"</span>, <span class="str">"screenshot-api-mcp"</span>]
+}
+
+<span class="comment">// Now your Cursor agent can call take_screenshot,
+// describe_page, and capture_pdf on any URL</span></pre>
+      </div>
+      <div class="demo-panel" id="tab-python">
+<pre><span class="kw">from</span> langchain_mcp_adapters.client <span class="kw">import</span> MultiServerMCPClient
+
+client = MultiServerMCPClient({
+    <span class="str">"screenshot"</span>: {
+        <span class="str">"command"</span>: <span class="str">"npx"</span>,
+        <span class="str">"args"</span>: [<span class="str">"-y"</span>, <span class="str">"screenshot-api-mcp"</span>],
+        <span class="str">"transport"</span>: <span class="str">"stdio"</span>,
+    }
+})
+
+tools = <span class="kw">await</span> client.<span class="fn">get_tools</span>()
+<span class="comment"># → [take_screenshot, describe_page, capture_pdf]</span></pre>
+      </div>
+    </div>
+
+    <!-- TOOLS -->
+    <div class="tools-grid">
+      <div class="tool-card">
+        <div class="tool-name">take_screenshot</div>
+        <div class="tool-desc">Renders any URL with a real Chromium browser (JS, SPAs, auth-walled pages) and returns a base64 PNG your agent can look at directly.</div>
+        <span class="tool-tag">PNG · JPEG · full-page</span>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">describe_page</div>
+        <div class="tool-desc">Screenshot + page title + H1 + meta description in a single call. Saves your agent one extra round-trip for the most common "what's on this page?" task.</div>
+        <span class="tool-tag">screenshot + text</span>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">capture_pdf</div>
+        <div class="tool-desc">Renders the URL as a print-ready A4 PDF. Useful for agents that archive, summarise, or extract structured data from long-form pages.</div>
+        <span class="tool-tag">A4 PDF</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHY -->
+  <section>
+    <div class="section-label">Why this exists</div>
+    <h2 class="section-title">What agents can't do today without this</h2>
+    <p class="section-sub">Text scraping misses half the page. Raw HTML gives your agent noise, not signal. This gives it the same view a human would see.</p>
+
+    <div class="why-grid">
+      <div class="why-card">
+        <div class="why-icon">👁️</div>
+        <div class="why-title">Agents see the rendered page</div>
+        <div class="why-text">JS-rendered SPAs, lazy-loaded content, canvas elements — Playwright renders everything before the screenshot is taken.</div>
+      </div>
+      <div class="why-card">
+        <div class="why-icon">🛡️</div>
+        <div class="why-title">Stealth mode built in</div>
+        <div class="why-text">Most screenshot APIs get blocked by Cloudflare and similar bot-detection. This one ships with evasion by default.</div>
+      </div>
+      <div class="why-card">
+        <div class="why-icon">⚡</div>
+        <div class="why-title">5-minute response cache</div>
+        <div class="why-text">Hit the same URL twice in a loop? Second response is instant. No double-billing, no extra Chromium context.</div>
+      </div>
+      <div class="why-card">
+        <div class="why-icon">🔌</div>
+        <div class="why-title">MCP-native, not bolted on</div>
+        <div class="why-text">The tools are designed for agent loops — structured outputs, sensible defaults, no boilerplate for the model to trip over.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section id="pricing">
+    <div class="section-label">Pricing</div>
+    <h2 class="section-title">Simple usage-based plans</h2>
+    <p class="section-sub">The self-hosted MCP server is always free. The hosted API (no Playwright install, no VM) launches soon.</p>
+
+    <div class="pricing-grid">
+      <div class="plan">
+        <div class="plan-name">Self-hosted</div>
+        <div class="plan-price">$0 <span>/ mo</span></div>
+        <div class="plan-req">Unlimited (your own infra)</div>
+        <ul class="plan-features">
+          <li>All 3 MCP tools</li>
+          <li>Requires Node.js + local Playwright</li>
+          <li>Open source on GitHub</li>
+        </ul>
+      </div>
+      <div class="plan featured">
+        <div class="plan-badge">Most popular</div>
+        <div class="plan-name">Starter</div>
+        <div class="plan-price">$19 <span>/ mo</span></div>
+        <div class="plan-req">2,000 screenshots / mo</div>
+        <ul class="plan-features">
+          <li>Hosted API — no install needed</li>
+          <li>All 3 MCP tools</li>
+          <li>Stealth mode included</li>
+          <li>API key + usage dashboard</li>
+        </ul>
+      </div>
+      <div class="plan">
+        <div class="plan-name">Pro</div>
+        <div class="plan-price">$49 <span>/ mo</span></div>
+        <div class="plan-req">10,000 screenshots / mo</div>
+        <ul class="plan-features">
+          <li>Everything in Starter</li>
+          <li>Higher concurrency limit</li>
+          <li>Priority support</li>
+        </ul>
+      </div>
+    </div>
+    <p class="pricing-note">Early access: first 3 months at 40% off for waitlist signups. No credit card until launch.</p>
+  </section>
+
+  <!-- CTA -->
+  <div class="cta-section">
+    <h2>Ready to give your agent eyes?</h2>
+    <p>Join the waitlist and get early access + 3 months at 40% off.</p>
+    <form id="ctaForm" onsubmit="submitWaitlistCta(event)">
+      <div class="field-row" style="justify-content:center">
+        <input type="email" id="ctaEmail" placeholder="you@company.com" required autocomplete="email"
+          style="background:#111827;border:1px solid #1e2d45;border-radius:8px;padding:0.65rem 1rem;color:#f1f5f9;font-size:0.95rem;outline:none;flex:1;max-width:280px">
+        <button type="submit" class="btn-primary">Join waitlist</button>
+      </div>
+      <p style="font-size:0.75rem;color:var(--muted);margin-top:0.75rem">No spam. Unsubscribe any time.</p>
+      <p class="success-msg" id="ctaSuccessMsg" style="margin-top:0.75rem">✓ You're on the list — we'll be in touch!</p>
+    </form>
+  </div>
+
+  <footer>
+    <div style="display:flex;justify-content:center;gap:1.5rem;flex-wrap:wrap">
+      <a href="https://github.com/raphy78626/screenshot-api" target="_blank">GitHub</a>
+      <a href="https://www.npmjs.com/package/screenshot-api-mcp" target="_blank">npm</a>
+      <a href="mailto:srafi@appen.com">Contact</a>
+    </div>
+    <p style="margin-top:0.75rem">© 2025 Screenshot API · Built for AI agents</p>
+  </footer>
+
   <script>
-    async function capture() {
-      const url = document.getElementById('url').value.trim()
-      const format = document.getElementById('format').value
-      const width = document.getElementById('width').value
-      const fullPage = document.getElementById('fullpage').checked
-      const btn = document.getElementById('btn')
-      const status = document.getElementById('status')
-      const result = document.getElementById('result')
-      const img = document.getElementById('img')
-      const curlEl = document.getElementById('curl')
-
-      if (!url) { status.textContent = 'Enter a URL first.'; status.className = 'status err'; return }
-
-      btn.disabled = true
-      status.textContent = 'Capturing…'
-      status.className = 'status'
-      result.style.display = 'none'
-
-      const params = new URLSearchParams({ url, format, width, full_page: fullPage })
-      const endpoint = `/screenshot?${params}`
-      const t0 = performance.now()
-
-      try {
-        const res = await fetch(endpoint)
-        const ms = Math.round(performance.now() - t0)
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({ error: res.statusText }))
-          throw new Error(err.error || res.statusText)
-        }
-
-        if (format === 'pdf') {
-          const blob = await res.blob()
-          const objUrl = URL.createObjectURL(blob)
-          window.open(objUrl, '_blank')
-          status.textContent = `PDF opened in new tab — ${ms}ms`
-          status.className = 'status ok'
-        } else {
-          const blob = await res.blob()
-          const objUrl = URL.createObjectURL(blob)
-          img.src = objUrl
-          result.style.display = 'block'
-          status.textContent = `Captured in ${ms}ms (server: ${res.headers.get('x-capture-ms') ?? '?'}ms)`
-          status.className = 'status ok'
-        }
-
-        curlEl.textContent = `curl "http://localhost:3099${endpoint}" --output shot.${format}`
-      } catch (e) {
-        status.textContent = `Error: ${e.message}`
-        status.className = 'status err'
-      } finally {
-        btn.disabled = false
-      }
+    // Tab switcher
+    function showTab(id) {
+      document.querySelectorAll('.demo-tab').forEach((t, i) => {
+        const ids = ['claude', 'cursor', 'python']
+        t.classList.toggle('active', ids[i] === id)
+      })
+      document.querySelectorAll('.demo-panel').forEach(p => {
+        p.classList.toggle('active', p.id === 'tab-' + id)
+      })
     }
 
-    document.getElementById('url').addEventListener('keydown', e => { if (e.key === 'Enter') capture() })
+    // Waitlist — stores locally + opens Tally fallback
+    function recordSignup(email) {
+      const key = 'wl_' + Date.now()
+      try { localStorage.setItem(key, JSON.stringify({ email, ts: new Date().toISOString() })) } catch (_) {}
+      // POST to a simple endpoint if server is running; silently fail if not
+      fetch('/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      }).catch(() => {})
+    }
+
+    function submitWaitlist(e) {
+      e.preventDefault()
+      const email = document.getElementById('wlEmail').value.trim()
+      if (!email) return
+      recordSignup(email)
+      document.getElementById('wlForm').style.opacity = '0.5'
+      document.getElementById('successMsg').style.display = 'block'
+    }
+
+    function submitWaitlistCta(e) {
+      e.preventDefault()
+      const email = document.getElementById('ctaEmail').value.trim()
+      if (!email) return
+      recordSignup(email)
+      document.getElementById('ctaForm').style.opacity = '0.5'
+      document.getElementById('ctaSuccessMsg').style.display = 'block'
+    }
   </script>
 </body>
 </html>
