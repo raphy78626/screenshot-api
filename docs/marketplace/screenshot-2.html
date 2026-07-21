@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1280">
+<title>Audit Evidence Bundle — ZIP Contents</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: linear-gradient(135deg, #0A1929 0%, #0D2137 100%);
+    width: 1280px; height: 800px; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* macOS window chrome */
+  .window {
+    width: 860px;
+    background: #1E1E1E;
+    border-radius: 12px;
+    box-shadow: 0 40px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06);
+    overflow: hidden;
+  }
+
+  .titlebar {
+    height: 40px;
+    background: #2D2D2D;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    position: relative;
+  }
+  .traffic { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .traffic.red    { background: #FF5F57; border: 0.5px solid rgba(0,0,0,0.2); }
+  .traffic.yellow { background: #FFBD2E; border: 0.5px solid rgba(0,0,0,0.2); }
+  .traffic.green  { background: #28C840; border: 0.5px solid rgba(0,0,0,0.2); }
+  .titlebar-title {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    font-size: 13px; color: #AAA; font-weight: 500;
+  }
+
+  /* Finder toolbar */
+  .finder-toolbar {
+    height: 44px;
+    background: #262626;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 12px;
+  }
+  .finder-nav { display: flex; gap: 6px; }
+  .finder-nav button {
+    background: rgba(255,255,255,0.07); border: none; border-radius: 4px;
+    width: 28px; height: 24px; color: #888; font-size: 14px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .finder-path {
+    flex: 1; background: rgba(255,255,255,0.06); border-radius: 5px;
+    padding: 5px 10px; font-size: 12px; color: #CCC;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .path-sep { color: #555; }
+  .path-seg { color: #CCC; }
+  .path-seg.current { color: #fff; font-weight: 500; }
+
+  /* Finder body */
+  .finder-body { display: flex; min-height: 400px; }
+
+  /* Sidebar */
+  .finder-sidebar {
+    width: 180px;
+    background: #1A1A1A;
+    border-right: 1px solid rgba(255,255,255,0.05);
+    padding: 12px 0;
+  }
+  .sidebar-group { margin-bottom: 16px; }
+  .sidebar-group-label {
+    font-size: 10px; font-weight: 700; color: #666; letter-spacing: 1px;
+    text-transform: uppercase; padding: 0 14px; margin-bottom: 4px;
+  }
+  .sidebar-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 14px; font-size: 13px; color: #999; cursor: pointer;
+  }
+  .sidebar-row.active { background: #0052CC; color: #fff; border-radius: 0; }
+  .sidebar-row:hover:not(.active) { background: rgba(255,255,255,0.05); }
+  .sidebar-icon { font-size: 14px; opacity: 0.8; }
+
+  /* File list */
+  .file-list { flex: 1; padding: 8px 0; }
+  .file-list-header {
+    display: grid; grid-template-columns: 1fr 100px 80px 110px;
+    padding: 6px 20px; border-bottom: 1px solid rgba(255,255,255,0.06);
+    font-size: 11px; color: #555; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .file-row {
+    display: grid; grid-template-columns: 1fr 100px 80px 110px;
+    padding: 8px 20px; align-items: center; cursor: pointer;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+  .file-row:hover { background: rgba(255,255,255,0.04); }
+  .file-row.selected { background: rgba(0, 82, 204, 0.25); }
+
+  .file-name { display: flex; align-items: center; gap: 10px; }
+  .file-icon { font-size: 20px; flex-shrink: 0; }
+  .file-label { font-size: 13px; color: #DDD; }
+  .file-label .ext { color: #777; font-size: 12px; }
+
+  .file-date { font-size: 12px; color: #666; }
+  .file-size { font-size: 12px; color: #666; text-align: right; padding-right: 20px; }
+  .file-kind { font-size: 12px; color: #666; }
+
+  .highlight-row { background: rgba(54, 179, 126, 0.08) !important; }
+  .highlight-row .file-label { color: #fff; }
+
+  /* Status bar */
+  .status-bar {
+    height: 28px;
+    background: #1C1C1C;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: #666;
+    gap: 16px;
+  }
+
+  /* Context label outside window */
+  .context {
+    position: absolute;
+    top: 48px; left: 50%; transform: translateX(-50%);
+    text-align: center;
+  }
+  .context-tag {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(54,179,126,0.15); border: 1px solid rgba(54,179,126,0.3);
+    border-radius: 20px; padding: 6px 16px;
+    font-size: 13px; color: #36B37E; font-weight: 500;
+  }
+
+  body { position: relative; }
+  .outer {
+    display: flex; flex-direction: column; align-items: center; gap: 20px; width: 100%;
+  }
+  .label-top {
+    font-size: 13px; color: rgba(255,255,255,0.4); letter-spacing: 0.3px;
+    text-align: center;
+  }
+  .label-top strong { color: rgba(255,255,255,0.7); }
+</style>
+</head>
+<body>
+<div class="outer">
+  <div class="label-top">Every export produces a ZIP bundle — <strong>PDFs + manifest.json + VERIFICATION.txt</strong></div>
+
+  <div class="window">
+    <!-- Title bar -->
+    <div class="titlebar">
+      <div class="traffic red"></div>
+      <div class="traffic yellow"></div>
+      <div class="traffic green"></div>
+      <div class="titlebar-title">audit-evidence-2026-07-21-prod — 7 items</div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="finder-toolbar">
+      <div class="finder-nav">
+        <button>‹</button>
+        <button>›</button>
+      </div>
+      <div class="finder-path">
+        <span class="path-seg">Downloads</span>
+        <span class="path-sep">›</span>
+        <span class="path-seg current">audit-evidence-2026-07-21-prod</span>
+      </div>
+    </div>
+
+    <div class="finder-body">
+      <!-- Sidebar -->
+      <div class="finder-sidebar">
+        <div class="sidebar-group">
+          <div class="sidebar-group-label">Favourites</div>
+          <div class="sidebar-row"><span class="sidebar-icon">🏠</span> Home</div>
+          <div class="sidebar-row active"><span class="sidebar-icon">⬇️</span> Downloads</div>
+          <div class="sidebar-row"><span class="sidebar-icon">🖥️</span> Desktop</div>
+          <div class="sidebar-row"><span class="sidebar-icon">📄</span> Documents</div>
+        </div>
+        <div class="sidebar-group">
+          <div class="sidebar-group-label">Locations</div>
+          <div class="sidebar-row"><span class="sidebar-icon">💻</span> Macbook Pro</div>
+          <div class="sidebar-row"><span class="sidebar-icon">☁️</span> iCloud Drive</div>
+        </div>
+      </div>
+
+      <!-- File list -->
+      <div class="file-list">
+        <div class="file-list-header">
+          <div>Name</div>
+          <div>Date Modified</div>
+          <div style="text-align:right;padding-right:20px">Size</div>
+          <div>Kind</div>
+        </div>
+
+        <div class="file-row">
+          <div class="file-name">
+            <span class="file-icon">📄</span>
+            <span class="file-label">Getting_started_in_Confluence_from_Jira_v1<span class="ext">.pdf</span></span>
+          </div>
+          <div class="file-date">Today 4:10 AM</div>
+          <div class="file-size">7.5 KB</div>
+          <div class="file-kind">PDF Document</div>
+        </div>
+        <div class="file-row">
+          <div class="file-name">
+            <span class="file-icon">📄</span>
+            <span class="file-label">Overview_v1<span class="ext">.pdf</span></span>
+          </div>
+          <div class="file-date">Today 4:10 AM</div>
+          <div class="file-size">2.9 KB</div>
+          <div class="file-kind">PDF Document</div>
+        </div>
+        <div class="file-row">
+          <div class="file-name">
+            <span class="file-icon">📄</span>
+            <span class="file-label">Software_Development_v1<span class="ext">.pdf</span></span>
+          </div>
+          <div class="file-date">Today 4:10 AM</div>
+          <div class="file-size">4.1 KB</div>
+          <div class="file-kind">PDF Document</div>
+        </div>
+        <div class="file-row">
+          <div class="file-name">
+            <span class="file-icon">📄</span>
+            <span class="file-label">Template_-_Decision_documentation_v1<span class="ext">.pdf</span></span>
+          </div>
+          <div class="file-date">Today 4:10 AM</div>
+          <div class="file-size">2.7 KB</div>
+          <div class="file-kind">PDF Document</div>
+        </div>
+        <div class="file-row">
+          <div class="file-name">
+            <span class="file-icon">📄</span>
+            <span class="file-label">Template_-_Meeting_notes_v1<span class="ext">.pdf</span></span>
+          </div>
+          <div class="file-date">Today 4:10 AM</div>
+          <div class="file-size">2.4 KB</div>
+          <div class="file-kind">PDF Document</div>
+        </div>
+        <div class="file-row highlight-row">
+          <div class="file-name">
+            <span class="file-icon">📋</span>
+            <span class="file-label">manifest<span class="ext">.json</span></span>
+          </div>
+          <div class="file-date">Today 4:10 AM</div>
+          <div class="file-size">3.3 KB</div>
+          <div class="file-kind">JSON Document</div>
+        </div>
+        <div class="file-row highlight-row">
+          <div class="file-name">
+            <span class="file-icon">🔐</span>
+            <span class="file-label">VERIFICATION<span class="ext">.txt</span></span>
+          </div>
+          <div class="file-date">Today 4:10 AM</div>
+          <div class="file-size">1.1 KB</div>
+          <div class="file-kind">Plain Text</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="status-bar">
+      7 items &nbsp;·&nbsp; 3.2 MB available &nbsp;·&nbsp; audit-evidence-2026-07-21-prod.zip
+    </div>
+  </div>
+
+  <div class="label-top"><strong>manifest.json</strong> records SHA-256 per PDF &nbsp;·&nbsp; <strong>VERIFICATION.txt</strong> has exact commands for your auditor</div>
+</div>
+</body>
+</html>
