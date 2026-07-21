@@ -1,0 +1,46 @@
+modules:
+  confluence:globalPage:
+    - key: audit-evidence-exporter-global
+      title: Audit Evidence Exporter
+      route: audit-evidence-global
+      resource: main
+      resolver:
+        function: resolver
+
+  confluence:spacePage:
+    - key: audit-evidence-exporter-space
+      title: Audit Evidence Exporter
+      route: audit-evidence-space
+      resource: main
+      resolver:
+        function: resolver
+
+  function:
+    - key: resolver
+      handler: index.handler
+    - key: scheduled-export
+      handler: index.scheduledExportHandler
+
+  scheduledTrigger:
+    - key: weekly-evidence-capture
+      function: scheduled-export
+      interval: week
+
+resources:
+  - key: main
+    path: src/frontend/build
+
+app:
+  id: ari:cloud:ecosystem::app/b8896340-46d2-4865-990d-4cbd06567591
+  runtime:
+    name: nodejs22.x
+
+permissions:
+  scopes:
+    - 'read:page:confluence'
+    - 'read:space:confluence'
+    - 'read:space-details:confluence'
+    - 'write:confluence-file'
+    - 'read:user:confluence'
+    - 'read:confluence-user'
+    - 'storage:app'

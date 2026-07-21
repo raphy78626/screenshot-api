@@ -27,13 +27,17 @@ Forge-native with no external servers, no data egress, no third-party accounts r
 
 ---
 
-### Free tier
+### Free
 - Export up to 5 pages per bundle
 - Full SHA-256 verification on every export
 - Download ZIP immediately
 
-### Paid — $5/month
+### Standard — $10/month
 - Unlimited pages per export
+- Manual export on demand
+
+### Pro — $25/month
+- Everything in Standard
 - **Weekly scheduled capture** — the app automatically re-exports your selected pages every week and attaches the ZIP to a Confluence page of your choice
 - No manual trigger needed — auditors find evidence waiting for them
 
