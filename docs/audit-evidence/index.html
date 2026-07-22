@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audit Evidence Exporter — SHA-256 verified PDF bundles for Confluence</title>
+<meta name="description" content="Export Confluence pages as timestamped, SHA-256 verified PDF bundles for SOC 2, ISO 27001, and HIPAA audits. Runs on Atlassian — your data never leaves your tenant.">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#060D16;
+  --surface:#0D1F2D;
+  --surface2:#122234;
+  --border:rgba(255,255,255,0.07);
+  --text:#E2EAF2;
+  --muted:#5A7A90;
+  --blue:#0052CC;
+  --blue-light:#2684FF;
+  --green:#36B37E;
+  --green-dim:rgba(54,179,126,0.12);
+  --green-border:rgba(54,179,126,0.25);
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh}
+
+/* NAV */
+nav{display:flex;align-items:center;justify-content:space-between;padding:18px 40px;border-bottom:1px solid var(--border);position:sticky;top:0;background:rgba(6,13,22,0.92);backdrop-filter:blur(12px);z-index:100}
+.nav-logo{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600;color:#fff;text-decoration:none}
+.nav-logo svg{flex-shrink:0}
+.nav-cta{background:var(--blue);color:#fff;padding:8px 18px;border-radius:5px;font-size:13px;font-weight:600;text-decoration:none;transition:background .15s}
+.nav-cta:hover{background:var(--blue-light)}
+
+/* HERO */
+.hero{max-width:780px;margin:0 auto;padding:80px 24px 64px;text-align:center}
+.hero-badge{display:inline-flex;align-items:center;gap:7px;background:var(--green-dim);border:1px solid var(--green-border);border-radius:20px;padding:5px 14px;font-size:12px;font-weight:600;color:var(--green);letter-spacing:.4px;text-transform:uppercase;margin-bottom:28px}
+.hero-badge::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
+h1{font-size:clamp(32px,5vw,52px);font-weight:700;line-height:1.12;letter-spacing:-1.2px;color:#fff;margin-bottom:22px}
+h1 span{color:var(--green)}
+.hero-sub{font-size:17px;color:#8AAABB;max-width:560px;margin:0 auto 36px;line-height:1.65}
+.hero-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn-primary{background:var(--blue);color:#fff;padding:13px 28px;border-radius:6px;font-size:15px;font-weight:600;text-decoration:none;transition:background .15s}
+.btn-primary:hover{background:var(--blue-light)}
+.btn-secondary{background:transparent;color:var(--text);padding:13px 28px;border-radius:6px;font-size:15px;font-weight:500;text-decoration:none;border:1px solid var(--border);transition:border-color .15s}
+.btn-secondary:hover{border-color:rgba(255,255,255,0.2)}
+
+/* TRUST BAR */
+.trust{display:flex;align-items:center;justify-content:center;gap:32px;padding:24px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);flex-wrap:wrap;margin-top:56px}
+.trust-item{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.trust-item svg{flex-shrink:0;color:var(--green)}
+
+/* TERMINAL */
+.terminal-wrap{max-width:780px;margin:64px auto;padding:0 24px}
+.terminal-label{text-align:center;font-size:13px;color:var(--muted);margin-bottom:16px}
+.terminal-label strong{color:rgba(255,255,255,0.6)}
+.terminal{background:#1C1C1E;border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,0.07);box-shadow:0 24px 60px rgba(0,0,0,0.6)}
+.tbar{height:38px;background:#2C2C2E;display:flex;align-items:center;padding:0 14px;gap:7px;border-bottom:1px solid rgba(255,255,255,0.05)}
+.dot{width:11px;height:11px;border-radius:50%}
+.dot.r{background:#FF5F57}.dot.y{background:#FFBD2E}.dot.g{background:#28C840}
+.tbody{padding:18px 20px;font-family:'SF Mono','JetBrains Mono',monospace;font-size:12.5px;line-height:1.8;color:#C8D0DA}
+.prompt{color:var(--green)}.dim{color:#444}.pass{color:var(--green);font-weight:700}
+.result-bar{margin-top:8px;padding:10px 14px;background:var(--green-dim);border:1px solid var(--green-border);border-radius:5px;color:var(--green);font-weight:700;font-size:13px}
+
+/* FEATURES */
+.features{max-width:1000px;margin:0 auto;padding:0 24px 80px}
+.section-label{text-align:center;font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+.section-title{text-align:center;font-size:clamp(22px,3vw,32px);font-weight:700;color:#fff;letter-spacing:-.5px;margin-bottom:48px;line-height:1.2}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:24px}
+.card-icon{width:36px;height:36px;border-radius:8px;background:var(--green-dim);border:1px solid var(--green-border);display:flex;align-items:center;justify-content:center;margin-bottom:14px}
+.card-icon svg{color:var(--green)}
+.card h3{font-size:14px;font-weight:600;color:#fff;margin-bottom:6px}
+.card p{font-size:13px;color:var(--muted);line-height:1.6}
+
+/* PRICING */
+.pricing{max-width:860px;margin:0 auto;padding:0 24px 80px}
+.pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:48px}
+.plan{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:28px}
+.plan.featured{border-color:var(--green-border);background:var(--surface2)}
+.plan-name{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:10px}
+.plan-price{font-size:32px;font-weight:700;color:#fff;letter-spacing:-1px;margin-bottom:4px}
+.plan-price span{font-size:14px;font-weight:400;color:var(--muted)}
+.plan-desc{font-size:13px;color:var(--muted);margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--border)}
+.plan ul{list-style:none;display:flex;flex-direction:column;gap:10px}
+.plan li{display:flex;align-items:flex-start;gap:9px;font-size:13px;color:#A0B4C0}
+.plan li::before{content:'✓';color:var(--green);font-weight:700;flex-shrink:0;margin-top:1px}
+
+/* FOOTER */
+footer{border-top:1px solid var(--border);padding:32px 40px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+footer p{font-size:13px;color:var(--muted)}
+footer a{color:var(--muted);text-decoration:none;font-size:13px}
+footer a:hover{color:var(--text)}
+.footer-links{display:flex;gap:24px}
+
+@media(max-width:600px){nav{padding:14px 20px}.hero{padding:48px 20px 40px}.trust{gap:20px}footer{padding:24px 20px}}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="#" class="nav-logo">
+    <svg width="22" height="22" viewBox="0 0 32 32" fill="none">
+      <rect width="32" height="32" rx="7" fill="#0052CC"/>
+      <path d="M10 22h12M10 17h12M10 12h7" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="24" cy="22" r="5" fill="#36B37E"/>
+      <path d="M21.5 22l1.5 1.5 3-3" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Audit Evidence Exporter
+  </a>
+  <a class="nav-cta" href="https://marketplace.atlassian.com" target="_blank">Get on Confluence →</a>
+</nav>
+
+<div class="hero">
+  <div class="hero-badge">Runs on Atlassian · Forge-native</div>
+  <h1>Compliance evidence,<br><span>captured and verified.</span></h1>
+  <p class="hero-sub">Export Confluence pages as timestamped PDF bundles with SHA-256 hashes auditors can independently verify — no trust required, no external servers.</p>
+  <div class="hero-btns">
+    <a class="btn-primary" href="https://marketplace.atlassian.com" target="_blank">Install free on Confluence</a>
+    <a class="btn-secondary" href="#how-it-works">See how it works ↓</a>
+  </div>
+
+  <div class="trust">
+    <div class="trust-item">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      SOC 2 Type I &amp; II
+    </div>
+    <div class="trust-item">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      ISO 27001
+    </div>
+    <div class="trust-item">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      HIPAA
+    </div>
+    <div class="trust-item">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      Data never leaves your tenant
+    </div>
+  </div>
+</div>
+
+<div class="terminal-wrap" id="how-it-works">
+  <p class="terminal-label">Run <strong>verify-bundle.sh</strong> on any export — every PDF hash is independently auditable</p>
+  <div class="terminal">
+    <div class="tbar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div></div>
+    <div class="tbody">
+      <div><span class="prompt">❯ </span>./verify-bundle.sh ~/Downloads/audit-evidence-2026-07-21.zip</div>
+      <div class="dim">Extracting...</div>
+      <div>&nbsp;</div>
+      <div class="dim">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+      <div class="dim">  Page: Security Policy (v3)</div>
+      <div class="dim">  Expected: e49a7de525026b29eab14a685fcc7200…</div>
+      <div class="dim">  Actual:   e49a7de525026b29eab14a685fcc7200…</div>
+      <div><span class="pass">  Status: PASS ✓</span></div>
+      <div>&nbsp;</div>
+      <div class="dim">  Page: Access Control Policy (v2)</div>
+      <div class="dim">  Expected: ab30bdad6377b53cc5cd4b9c8120ac5c…</div>
+      <div class="dim">  Actual:   ab30bdad6377b53cc5cd4b9c8120ac5c…</div>
+      <div><span class="pass">  Status: PASS ✓</span></div>
+      <div>&nbsp;</div>
+      <div class="dim">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+      <div class="result-bar">  Results: 5 passed · 0 failed · 0 skipped</div>
+    </div>
+  </div>
+</div>
+
+<div class="features">
+  <p class="section-label">What you get</p>
+  <p class="section-title">Everything an auditor needs,<br>in a single ZIP</p>
+  <div class="grid">
+    <div class="card">
+      <div class="card-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+      </div>
+      <h3>Timestamped PDFs</h3>
+      <p>Every page captured with exact date, time, and version number stamped in the footer. No ambiguity about when the snapshot was taken.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <h3>SHA-256 per PDF</h3>
+      <p>Each PDF is hashed after generation. Hashes are recorded in manifest.json so any auditor can run <code style="font-size:11px;background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:3px">shasum -a 256</code> and verify independently.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      </div>
+      <h3>VERIFICATION.txt</h3>
+      <p>Step-by-step verification commands included in every bundle. Auditors can self-verify without any proprietary tools — just a terminal.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <h3>Weekly scheduled capture</h3>
+      <p>Set it once — the app exports your selected pages automatically every week and attaches the ZIP to a Confluence page of your choice.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+      </div>
+      <h3>Runs on Atlassian</h3>
+      <p>Forge-native. No external servers, no data egress, no third-party accounts. Everything runs inside your Atlassian tenant.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </div>
+      <h3>Structured rendering</h3>
+      <p>Headings, bullets, tables, and code blocks render cleanly in the PDF — not a plain-text dump. Looks professional in an audit package.</p>
+    </div>
+  </div>
+</div>
+
+<div class="pricing">
+  <p class="section-label">Pricing</p>
+  <p class="section-title">Start free. Upgrade when you need it.</p>
+  <div class="pricing-grid">
+    <div class="plan">
+      <p class="plan-name">Free</p>
+      <p class="plan-price">$0</p>
+      <p class="plan-desc">Up to 5 pages per export. Full SHA-256 verification included.</p>
+      <ul>
+        <li>5 pages per bundle</li>
+        <li>SHA-256 hash per PDF</li>
+        <li>manifest.json + VERIFICATION.txt</li>
+        <li>Instant ZIP download</li>
+      </ul>
+    </div>
+    <div class="plan">
+      <p class="plan-name">Standard</p>
+      <p class="plan-price">$10<span>/month</span></p>
+      <p class="plan-desc">Unlimited pages. For teams doing regular manual exports.</p>
+      <ul>
+        <li>Unlimited pages per bundle</li>
+        <li>SHA-256 hash per PDF</li>
+        <li>manifest.json + VERIFICATION.txt</li>
+        <li>Instant ZIP download</li>
+      </ul>
+    </div>
+    <div class="plan featured">
+      <p class="plan-name">Pro</p>
+      <p class="plan-price">$25<span>/month</span></p>
+      <p class="plan-desc">Everything in Standard plus automated weekly capture.</p>
+      <ul>
+        <li>Unlimited pages per bundle</li>
+        <li>SHA-256 hash per PDF</li>
+        <li>manifest.json + VERIFICATION.txt</li>
+        <li>Weekly scheduled capture</li>
+        <li>Auto-attach ZIP to Confluence page</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p>© 2026 Audit Evidence Exporter · Built for Confluence</p>
+  <div class="footer-links">
+    <a href="../privacy">Privacy Policy</a>
+    <a href="mailto:raphy78626@gmail.com">Support</a>
+    <a href="https://marketplace.atlassian.com" target="_blank">Atlassian Marketplace</a>
+  </div>
+</footer>
+
+</body>
+</html>

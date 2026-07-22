@@ -319,7 +319,7 @@ function App() {
         <div>
           <div style={styles.label}>
             Select pages to capture
-            {spaceKey && <span style={{ color: '#6B778C', fontWeight: 400, marginLeft: 8 }}>({spaceKey})</span>}
+            {spaceKey && <span style={{ color: '#6B778C', fontWeight: 400, marginLeft: 8 }}>({spaceKey.startsWith('~') ? 'Personal Space' : spaceKey})</span>}
             <button style={{ ...styles.btn(false, false), marginLeft: 12, padding: '2px 8px', fontSize: 12 }}
               onClick={() => { setSpaces('input'); setPages([]); setSelected(new Set()); setSpaceKey(null); }}>
               ↩ Change space
