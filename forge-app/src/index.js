@@ -487,9 +487,12 @@ resolver.define('exportEvidence', async ({ payload, context }) => {
     }
   }
 
+  const successCount = manifest.pages.filter((p) => !p.error).length;
+  await recordExport(successCount, false);
+
   return {
     success: true,
-    pageCount: manifest.pages.filter((p) => !p.error).length,
+    pageCount: successCount,
     errorCount: manifest.pages.filter((p) => p.error).length,
     exportedAt: capturedAt,
     zipBase64: zipBuffer.toString('base64'),
@@ -502,6 +505,27 @@ resolver.define('exportEvidence', async ({ payload, context }) => {
     return { error: outerErr.message };
   }
 });
+
+// ── Telemetry: increment daily export counters in Forge KVS ─────────────────
+async function recordExport(pageCount, scheduled = false) {
+  try {
+    const day = new Date().toISOString().substring(0, 10); // YYYY-MM-DD
+    const key = `stats:${day}`;
+    const prev = (await storage.get(key)) ?? { exports: 0, pages: 0, scheduled: 0 };
+    await storage.set(key, {
+      exports: prev.exports + 1,
+      pages: prev.pages + pageCount,
+      scheduled: prev.scheduled + (scheduled ? 1 : 0),
+    });
+    const totals = (await storage.get('stats:totals')) ?? { exports: 0, pages: 0 };
+    await storage.set('stats:totals', {
+      exports: totals.exports + 1,
+      pages: totals.pages + pageCount,
+    });
+  } catch {
+    // non-fatal — never let telemetry break an export
+  }
+}
 
 // ── Resolver: check license status ───────────────────────────────────────────
 resolver.define('getLicenseStatus', async ({ context }) => {
@@ -573,6 +597,9 @@ async function runScheduledExport() {
   const zipBuffer = await buildBundle(files);
   const zipFilename = `audit-evidence-scheduled-${capturedAt.replace(/[:.]/g, '-').substring(0, 19)}.zip`;
 
+  const successCount = manifest.pages.filter((p) => !p.error).length;
+  await recordExport(successCount, true);
+
   if (attachToPageId) {
     try {
       await attachZipToPage(attachToPageId, zipBuffer, zipFilename);
@@ -584,6 +611,25 @@ async function runScheduledExport() {
     console.log('[scheduled] no attachToPageId configured — ZIP not attached');
   }
 }
+
+// ── Resolver: usage stats ────────────────────────────────────────────────────
+resolver.define('getStats', async () => {
+  try {
+    const totals = (await storage.get('stats:totals')) ?? { exports: 0, pages: 0 };
+    // Last 7 days
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const day = d.toISOString().substring(0, 10);
+      const data = (await storage.get(`stats:${day}`)) ?? { exports: 0, pages: 0, scheduled: 0 };
+      days.push({ date: day, ...data });
+    }
+    return { totals, days };
+  } catch {
+    return { totals: { exports: 0, pages: 0 }, days: [] };
+  }
+});
 
 export const handler = resolver.getDefinitions();
 export async function scheduledExportHandler() {

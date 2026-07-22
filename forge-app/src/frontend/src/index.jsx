@@ -207,6 +207,55 @@ function SpaceKeyInput({ onPick }) {
   );
 }
 
+function StatsPanel() {
+  const [stats, setStats] = useState(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (open && !stats) invoke('getStats').then(setStats).catch(() => {});
+  }, [open]);
+
+  return (
+    <div style={{ marginTop: 24, borderTop: '1px solid #DFE1E6', paddingTop: 12 }}>
+      <button style={{ ...styles.btn(false, false), fontSize: 12 }} onClick={() => setOpen((v) => !v)}>
+        {open ? '▲ Hide stats' : '▼ Usage stats'}
+      </button>
+      {open && stats && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ display: 'flex', gap: 24, marginBottom: 12 }}>
+            <div style={{ background: '#F4F5F7', borderRadius: 5, padding: '10px 18px', textAlign: 'center' }}>
+              <div style={{ fontSize: 22, fontWeight: 700 }}>{stats.totals.exports}</div>
+              <div style={{ fontSize: 11, color: '#6B778C' }}>Total exports</div>
+            </div>
+            <div style={{ background: '#F4F5F7', borderRadius: 5, padding: '10px 18px', textAlign: 'center' }}>
+              <div style={{ fontSize: 22, fontWeight: 700 }}>{stats.totals.pages}</div>
+              <div style={{ fontSize: 11, color: '#6B778C' }}>Pages captured</div>
+            </div>
+          </div>
+          <table style={styles.table}>
+            <thead><tr>
+              <th style={styles.th}>Date</th>
+              <th style={styles.th}>Exports</th>
+              <th style={styles.th}>Pages</th>
+              <th style={styles.th}>Scheduled</th>
+            </tr></thead>
+            <tbody>
+              {stats.days.map((d) => (
+                <tr key={d.date}>
+                  <td style={styles.td}>{d.date}</td>
+                  <td style={styles.td}>{d.exports}</td>
+                  <td style={styles.td}>{d.pages}</td>
+                  <td style={styles.td}>{d.scheduled}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function App() {
   const [spaces, setSpaces] = useState(null);
   const [pages, setPages] = useState([]);
@@ -344,6 +393,7 @@ function App() {
       <div style={{ color: '#6B778C', fontSize: 12, marginTop: 12 }}>
         Each PDF is timestamped and SHA-256 hashed. A manifest.json lists all hashes for auditor verification.
       </div>
+      <StatsPanel />
     </div>
   );
 }
