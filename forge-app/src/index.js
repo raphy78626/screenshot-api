@@ -404,7 +404,7 @@ resolver.define('exportEvidence', async ({ payload, context }) => {
   const capturedAt = new Date().toISOString();
   const manifest = {
     exportedAt: capturedAt,
-    exportedBy: context.accountId || 'unknown',
+    exportedBy: await getDisplayName(context.accountId),
     tier: paid ? 'paid' : 'free',
     pages: [],
   };
