@@ -20,6 +20,30 @@ AI agents can't see web pages — they get raw HTML, which is noisy, incomplete 
 
 ---
 
+## Architecture
+
+```mermaid
+flowchart LR
+  Agent[MCP agent] -->|tool call| MCP[screenshot-api MCP]
+  MCP --> Cache{URL cache<br/>5-min TTL}
+  Cache -->|hit| Resp[base64 PNG / PDF]
+  Cache -->|miss| PW[Playwright + stealth]
+  PW --> Page[Rendered page]
+  Page --> Resp
+  MCP -->|HTTP| API[Fastify capture API]
+  API --> PW
+```
+
+**MCP tool contract:** `take_screenshot(url, format?)`, `describe_page(url)`, `capture_pdf(url)` — structured outputs for agent loops, not raw HTTP wrappers.
+
+**Failure modes:**
+- Bot blocks / CAPTCHA → stealth evasion; still fails on hard walls → return explicit error (don't hallucinate a blank page)
+- Playwright crash / timeout → bounded retry, then fail closed with status
+- Cache stampede on same URL → TTL cache collapses duplicate agent loops
+- Hosted vs self-hosted → self-host keeps data local; hosted trades ops for uptime
+
+---
+
 ## Quick start (self-hosted, free)
 
 ### Claude Desktop
