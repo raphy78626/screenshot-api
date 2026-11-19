@@ -33,7 +33,7 @@
   "author": "raphy78626",
   "repository": {
     "type": "git",
-    "url": "https://github.com/raphy78626/screenshot-api.git"
+    "url": "git+https://github.com/raphy78626/screenshot-api.git"
   },
   "homepage": "https://github.com/raphy78626/screenshot-api#readme",
   "license": "MIT",

@@ -1,6 +1,6 @@
 # Privacy Policy — Audit Evidence Exporter for Confluence
 
-**Effective date:** 2026-07-21
+**Effective date:** 2026-11-19
 **Contact:** raphy78626@gmail.com
 
 ---
@@ -27,22 +27,25 @@ This data is accessed at the time of export and is never transmitted to any serv
 
 ## Data we store
 
-The app stores one configuration record per site using Atlassian Forge KVS (key-value storage):
+The app stores minimal operational records per site inside **Atlassian Forge KVS (key-value storage)** within your Atlassian tenant:
 
-- Space key
-- List of selected page IDs
-- Optional: the ID of a Confluence page to attach exports to
+1. **Scheduled capture configuration** (stored only if you enable weekly scheduled capture):
+   - Space key
+   - List of selected page IDs
+   - Optional: the ID of a Confluence page to attach exports to
+   - You can delete this record at any time from the app's UI by removing the schedule.
+2. **Aggregate export counters** (used solely to display the in-app *Usage stats* panel):
+   - Daily and all-time counts of exports run and pages captured (`stats:YYYY-MM-DD`, `stats:totals`)
+   - Contains numeric counts only — no user names, account IDs, page titles, or page content.
 
-This record is stored only when you enable the weekly scheduled capture feature. It contains no personal information and no page content.
-
-You can delete this record at any time from the app's UI by removing the schedule.
+No personal information and no page content are persisted.
 
 ---
 
 ## Data we do NOT collect
 
 - We do not collect, transmit, or store page content on any external server.
-- We do not collect analytics, usage statistics, or telemetry.
+- We do not transmit analytics, usage statistics, or telemetry to any external service (aggregate export counts stay strictly inside your tenant's Forge KVS).
 - We do not store user names, email addresses, or account IDs beyond the duration of a single export invocation.
 - We do not use cookies or tracking technologies.
 

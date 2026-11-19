@@ -138,7 +138,7 @@ function SchedulePanel({ result, selectedPages, spaceKey, license, onSaved }) {
       <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Weekly automated capture</div>
       {!isPaid ? (
         <div style={{ ...styles.banner('#DEEBFF'), fontSize: 13 }}>
-          Scheduling requires the <strong>Pro plan ($25/month)</strong>. Upgrade to capture evidence automatically every week.
+          Weekly automated capture is part of the upcoming <strong>Paid via Atlassian</strong> tier (coming soon).
         </div>
       ) : schedule ? (
         <div style={styles.banner('#E3FCEF')}>
@@ -350,7 +350,7 @@ function App() {
 
       {license && !license.paid && (
         <div style={styles.banner('#DEEBFF')}>
-          <strong>Free tier</strong> — up to {license.freePageLimit} pages per export. Upgrade for unlimited pages.
+          <strong>Free tier</strong> — up to {license.freePageLimit} pages per export. Full SHA-256 verification included.
         </div>
       )}
 

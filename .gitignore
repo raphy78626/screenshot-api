@@ -6,3 +6,12 @@ dist/
 *.log
 .DS_Store
 waitlist.jsonl
+.playwright-mcp/
+.superpowers/
+.cursor/
+forge-app/out/
+after-save.png
+distribution-edit.png
+distribution-page.png
+listing-page.png
+
