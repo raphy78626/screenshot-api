@@ -43,4 +43,5 @@ permissions:
     - 'write:confluence-file'
     - 'read:user:confluence'
     - 'read:confluence-user'
+    - 'read:confluence-content.permission'
     - 'storage:app'

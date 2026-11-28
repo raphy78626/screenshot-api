@@ -1,5 +1,5 @@
 import Resolver from '@forge/resolver';
-import { route, storage } from '@forge/api';
+import { route, storage, authorize } from '@forge/api';
 import api from '@forge/api';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { sha256, sanitizeFilename, buildManifestEntry, buildBundle, buildVerificationTxt } from './evidence.js';
@@ -7,6 +7,27 @@ import { sha256, sanitizeFilename, buildManifestEntry, buildBundle, buildVerific
 const resolver = new Resolver();
 
 const FREE_TIER_PAGE_LIMIT = 5;
+
+// Interactive resolvers ALWAYS use api.asUser() directly so static call-graph
+// analyzers (Atlassian EcoScanner FSRT) see zero path from index.handler to api.asApp().
+// Only scheduledExportHandler (no user context) calls api.asApp() directly.
+
+/** Ensure the current user can read content before any privileged work. */
+async function assertUserCanRead(pageIds) {
+  const ids = Array.isArray(pageIds) ? pageIds : [pageIds];
+  const allowed = await authorize().onConfluenceContent(ids).canRead();
+  if (!allowed) {
+    throw new Error('Permission denied: you do not have access to one or more selected pages.');
+  }
+}
+
+/** Ensure the current user can update (attach to) a page. */
+async function assertUserCanUpdate(pageId) {
+  const allowed = await authorize().onConfluenceContent(pageId).canUpdate();
+  if (!allowed) {
+    throw new Error(`Permission denied: you cannot attach files to page ${pageId}.`);
+  }
+}
 
 // ── License check (free vs paid) ─────────────────────────────────────────────
 async function isPaidUser(context) {
@@ -18,13 +39,11 @@ async function isPaidUser(context) {
   }
 }
 
-// ── Fetch pages in a space ───────────────────────────────────────────────────
+// ── Fetch pages in a space (interactive — asUser only) ───────────────────────
 async function getSpacePages(spaceKey, limit = 100) {
-  const res = await api
-    .asApp()
-    .requestConfluence(
-      route`/wiki/api/v2/pages?spaceKey=${spaceKey}&limit=${limit}&sort=title`,
-    );
+  const res = await api.asUser().requestConfluence(
+    route`/wiki/api/v2/pages?spaceKey=${spaceKey}&limit=${limit}&sort=title`,
+  );
   if (!res.ok) {
     const txt = await res.text().catch(() => '');
     throw new Error(`Failed to fetch pages: ${res.status} ${txt.substring(0, 120)}`);
@@ -33,43 +52,45 @@ async function getSpacePages(spaceKey, limit = 100) {
   return data.results || [];
 }
 
-// ── Resolve space id → key (cached per invocation) ───────────────────────────
+// ── Resolve space id → key (interactive — asUser only) ───────────────────────
 const spaceKeyCache = new Map();
 async function getSpaceKey(spaceId) {
   if (!spaceId) return 'unknown';
-  if (spaceKeyCache.has(spaceId)) return spaceKeyCache.get(spaceId);
+  const cacheKey = `user:${spaceId}`;
+  if (spaceKeyCache.has(cacheKey)) return spaceKeyCache.get(cacheKey);
   try {
-    const res = await api.asApp().requestConfluence(route`/wiki/api/v2/spaces/${spaceId}`);
+    const res = await api.asUser().requestConfluence(route`/wiki/api/v2/spaces/${spaceId}`);
     const key = res.ok ? (await res.json()).key ?? String(spaceId) : String(spaceId);
-    spaceKeyCache.set(spaceId, key);
+    spaceKeyCache.set(cacheKey, key);
     return key;
   } catch {
     return String(spaceId);
   }
 }
 
-// ── Resolve accountId → display name ────────────────────────────────────────
+// ── Resolve accountId → display name (interactive — asUser only) ─────────────
 const userDisplayCache = new Map();
 async function getDisplayName(accountId) {
   if (!accountId) return 'unknown';
-  if (userDisplayCache.has(accountId)) return userDisplayCache.get(accountId);
+  const cacheKey = `user:${accountId}`;
+  if (userDisplayCache.has(cacheKey)) return userDisplayCache.get(cacheKey);
   try {
-    const res = await api.asApp().requestConfluence(route`/wiki/rest/api/user?accountId=${accountId}`);
+    const res = await api.asUser().requestConfluence(
+      route`/wiki/rest/api/user?accountId=${accountId}`,
+    );
     const name = res.ok ? ((await res.json()).displayName ?? accountId) : accountId;
-    userDisplayCache.set(accountId, name);
+    userDisplayCache.set(cacheKey, name);
     return name;
   } catch {
     return accountId;
   }
 }
 
-// ── Fetch single page details ────────────────────────────────────────────────
+// ── Fetch single page details (interactive — asUser only) ────────────────────
 async function getPage(pageId) {
-  const res = await api
-    .asApp()
-    .requestConfluence(
-      route`/wiki/api/v2/pages/${pageId}?body-format=storage`,
-    );
+  const res = await api.asUser().requestConfluence(
+    route`/wiki/api/v2/pages/${pageId}?body-format=storage`,
+  );
   if (!res.ok) {
     const txt = await res.text().catch(() => '');
     throw new Error(`Failed to fetch page ${pageId}: ${res.status} ${txt.substring(0, 120)}`);
@@ -88,6 +109,13 @@ async function getPage(pageId) {
     body: { storage: { value: data.body?.storage?.value } },
     _links: data._links,
   };
+}
+
+async function getPageViewHtml(pageId, fallbackHtml) {
+  const viewRes = await api.asUser().requestConfluence(
+    route`/wiki/api/v2/pages/${pageId}?body-format=view`,
+  );
+  return viewRes.ok ? (await viewRes.json()).body?.view?.value : fallbackHtml;
 }
 
 // sha256, sanitizeFilename, buildManifestEntry, buildBundle imported from ./evidence.js
@@ -321,21 +349,21 @@ async function generatePdf(page, viewHtml, sourceHash, capturedAt) {
 }
 
 
-// ── Attach ZIP to a Confluence page ─────────────────────────────────────────
+// ── Attach ZIP to a Confluence page (interactive — asUser only) ─────────────
 async function attachZipToPage(pageId, zipBuffer, filename) {
   const formData = new FormData();
   const blob = new Blob([zipBuffer], { type: 'application/zip' });
   formData.append('file', blob, filename);
   formData.append('comment', 'Audit evidence bundle — generated by Audit Evidence Exporter');
 
-  // Uses write:confluence-file scope (v2 API); asApp() works in both manual and scheduled contexts
-  const res = await api
-    .asApp()
-    .requestConfluence(route`/wiki/api/v2/pages/${pageId}/attachments`, {
+  const res = await api.asUser().requestConfluence(
+    route`/wiki/api/v2/pages/${pageId}/attachments`,
+    {
       method: 'POST',
       headers: { 'X-Atlassian-Token': 'no-check' },
       body: formData,
-    });
+    },
+  );
 
   if (!res.ok) {
     const text = await res.text();
@@ -344,11 +372,11 @@ async function attachZipToPage(pageId, zipBuffer, filename) {
   return res.json();
 }
 
-// ── Fetch all spaces ─────────────────────────────────────────────────────────
+// ── Fetch all spaces (interactive — asUser only) ─────────────────────────────
 async function listSpaces(limit = 50) {
-  const res = await api
-    .asApp()
-    .requestConfluence(route`/wiki/rest/api/space?limit=${limit}&type=global&status=current`);
+  const res = await api.asUser().requestConfluence(
+    route`/wiki/rest/api/space?limit=${limit}&type=global&status=current`,
+  );
   if (!res.ok) {
     const txt = await res.text().catch(() => '');
     throw new Error(`Failed to fetch spaces: ${res.status} ${txt.substring(0, 100)}`);
@@ -366,7 +394,7 @@ resolver.define('getSpacePages', async ({ payload, context }) => {
   }
 
   try {
-    const pages = await getSpacePages(spaceKey);
+    const pages = await getSpacePages(spaceKey, 100);
     return {
       pages: pages.map((p) => ({
         id: p.id,
@@ -401,6 +429,20 @@ resolver.define('exportEvidence', async ({ payload, context }) => {
     };
   }
 
+  // Authorize API gate — required for Marketplace FSRT Custom-Check-Authorization
+  try {
+    await assertUserCanRead(pageIds);
+  } catch (permErr) {
+    return { error: permErr.message, permissionDenied: true };
+  }
+  if (attachToPageId) {
+    try {
+      await assertUserCanUpdate(attachToPageId);
+    } catch (permErr) {
+      return { error: permErr.message, permissionDenied: true };
+    }
+  }
+
   const capturedAt = new Date().toISOString();
   const manifest = {
     exportedAt: capturedAt,
@@ -411,7 +453,7 @@ resolver.define('exportEvidence', async ({ payload, context }) => {
 
   const files = [];
 
-  // Process each page
+  // Process each page as the invoking user (asUser)
   for (const pageId of pageIds) {
     const safeTitle = `page_${pageId}`;
     let manifestEntry = null;
@@ -429,10 +471,7 @@ resolver.define('exportEvidence', async ({ payload, context }) => {
       let pdfSha256 = null;
       let pdfError = null;
       try {
-        const viewRes = await api.asApp().requestConfluence(
-          route`/wiki/api/v2/pages/${pageId}?body-format=view`,
-        );
-        const viewHtml = viewRes.ok ? (await viewRes.json()).body?.view?.value : storageContent;
+        const viewHtml = await getPageViewHtml(pageId, storageContent);
         console.log(`[export] view html len=${(viewHtml || '').length}`);
         const pdfResult = await generatePdf(page, viewHtml, contentHash, capturedAt);
         pdfBuffer = pdfResult.buffer;
@@ -476,7 +515,7 @@ resolver.define('exportEvidence', async ({ payload, context }) => {
   const zipBuffer = await buildBundle(files);
   console.log(`[export] zip bytes=${zipBuffer.length}`);
 
-  // Optionally attach to a Confluence page
+  // Optionally attach to a Confluence page (as the user)
   let attachmentResult = null;
   if (attachToPageId) {
     const zipFilename = `audit-evidence-${capturedAt.replace(/[:.]/g, '-').substring(0, 19)}.zip`;
@@ -545,19 +584,120 @@ resolver.define('saveSchedule', async ({ payload, context }) => {
   if (!paid) return { error: 'Scheduled capture requires a paid plan.' };
   const { spaceKey, pageIds, attachToPageId } = payload;
   if (!spaceKey || !pageIds?.length) return { error: 'spaceKey and pageIds required' };
-  await storage.set(SCHEDULE_KEY, { spaceKey, pageIds, attachToPageId: attachToPageId ?? null, savedAt: new Date().toISOString() });
+
+  // Authorize before persisting — scheduled trigger runs asApp(), so prevent confused-deputy escalation
+  try {
+    await assertUserCanRead(pageIds);
+    if (attachToPageId) {
+      await assertUserCanUpdate(attachToPageId);
+    }
+  } catch (permErr) {
+    return { error: permErr.message, permissionDenied: true };
+  }
+
+  await storage.set(SCHEDULE_KEY, {
+    spaceKey,
+    pageIds,
+    attachToPageId: attachToPageId ?? null,
+    createdBy: context.accountId ?? null,
+    savedAt: new Date().toISOString(),
+  });
   return { success: true };
 });
 
-resolver.define('getSchedule', async () => {
+resolver.define('getSchedule', async ({ context }) => {
   const config = await storage.get(SCHEDULE_KEY);
-  return { config: config ?? null };
+  if (!config) return { config: null };
+  // Only expose schedule metadata to the creator or users authorized to read the scheduled pages
+  if (config.createdBy && config.createdBy === context.accountId) {
+    return { config };
+  }
+  const canRead = config.pageIds?.length
+    ? await authorize().onConfluenceContent(config.pageIds).canRead()
+    : false;
+  return { config: canRead ? config : null };
 });
 
-resolver.define('deleteSchedule', async () => {
+resolver.define('deleteSchedule', async ({ context }) => {
+  const config = await storage.get(SCHEDULE_KEY);
+  if (!config) return { success: true };
+  const isCreator = config.createdBy && config.createdBy === context.accountId;
+  const canRead = !isCreator && config.pageIds?.length
+    ? await authorize().onConfluenceContent(config.pageIds).canRead()
+    : false;
+  if (!isCreator && !canRead) {
+    return { error: 'Permission denied: you cannot modify this schedule.', permissionDenied: true };
+  }
   await storage.delete(SCHEDULE_KEY);
   return { success: true };
 });
+
+// ── Scheduled trigger helpers (asApp only — never called from interactive resolvers) ──
+async function getPageAsApp(pageId) {
+  const res = await api.asApp().requestConfluence(
+    route`/wiki/api/v2/pages/${pageId}?body-format=storage`,
+  );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    throw new Error(`Failed to fetch page ${pageId}: ${res.status} ${txt.substring(0, 120)}`);
+  }
+  const data = await res.json();
+  let authorName = data.version?.authorId ?? 'unknown';
+  if (data.version?.authorId) {
+    try {
+      const uRes = await api.asApp().requestConfluence(
+        route`/wiki/rest/api/user?accountId=${data.version.authorId}`,
+      );
+      if (uRes.ok) authorName = (await uRes.json()).displayName ?? authorName;
+    } catch { /* fallback to accountId */ }
+  }
+  let spaceKey = String(data.spaceId ?? 'unknown');
+  if (data.spaceId) {
+    try {
+      const sRes = await api.asApp().requestConfluence(route`/wiki/api/v2/spaces/${data.spaceId}`);
+      if (sRes.ok) spaceKey = (await sRes.json()).key ?? spaceKey;
+    } catch { /* fallback to spaceId */ }
+  }
+  return {
+    id: data.id,
+    title: data.title,
+    version: {
+      number: data.version?.number,
+      when: data.version?.createdAt,
+      by: { displayName: authorName },
+    },
+    space: { key: spaceKey },
+    body: { storage: { value: data.body?.storage?.value } },
+    _links: data._links,
+  };
+}
+
+async function getPageViewHtmlAsApp(pageId, fallbackHtml) {
+  const viewRes = await api.asApp().requestConfluence(
+    route`/wiki/api/v2/pages/${pageId}?body-format=view`,
+  );
+  return viewRes.ok ? (await viewRes.json()).body?.view?.value : fallbackHtml;
+}
+
+async function attachZipToPageAsApp(pageId, zipBuffer, filename) {
+  const formData = new FormData();
+  const blob = new Blob([zipBuffer], { type: 'application/zip' });
+  formData.append('file', blob, filename);
+  formData.append('comment', 'Audit evidence bundle — generated by Audit Evidence Exporter');
+  const res = await api.asApp().requestConfluence(
+    route`/wiki/api/v2/pages/${pageId}/attachments`,
+    {
+      method: 'POST',
+      headers: { 'X-Atlassian-Token': 'no-check' },
+      body: formData,
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to attach ZIP: ${res.status} ${text}`);
+  }
+  return res.json();
+}
 
 // ── Scheduled trigger: weekly evidence capture ────────────────────────────────
 async function runScheduledExport() {
@@ -575,11 +715,10 @@ async function runScheduledExport() {
 
   for (const pageId of pageIds) {
     try {
-      const page = await getPage(pageId);
+      const page = await getPageAsApp(pageId);
       const storageContent = page.body?.storage?.value || '';
       const contentHash = sha256(storageContent);
-      const viewRes = await api.asApp().requestConfluence(route`/wiki/api/v2/pages/${pageId}?body-format=view`);
-      const viewHtml = viewRes.ok ? (await viewRes.json()).body?.view?.value : storageContent;
+      const viewHtml = await getPageViewHtmlAsApp(pageId, storageContent);
       const { buffer: pdfBuffer, pdfSha256 } = await generatePdf(page, viewHtml, contentHash, capturedAt);
       const entry = buildManifestEntry(page, contentHash, pdfSha256);
       manifest.pages.push(entry);
@@ -602,7 +741,7 @@ async function runScheduledExport() {
 
   if (attachToPageId) {
     try {
-      await attachZipToPage(attachToPageId, zipBuffer, zipFilename);
+      await attachZipToPageAsApp(attachToPageId, zipBuffer, zipFilename);
       console.log(`[scheduled] attached ${zipFilename} to page ${attachToPageId}`);
     } catch (err) {
       console.log(`[scheduled] attach failed: ${err.message}`);

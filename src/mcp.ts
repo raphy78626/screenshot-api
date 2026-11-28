@@ -1,45 +1,13 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import { chromium as chromiumExtra } from 'playwright-extra'
-import StealthPlugin from 'puppeteer-extra-plugin-stealth'
-import { type Browser } from 'playwright'
-chromiumExtra.use(StealthPlugin())
-import { lookup } from 'node:dns/promises'
 import { z } from 'zod'
-
-// ── SSRF guard (same ruleset as HTTP API) ──────────────────────────────────────
-const PRIVATE_IP = /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|0\.|::1|fc00:|fd)/i
-const BLOCKED_HOSTS = new Set(['localhost', 'metadata.google.internal', 'metadata', '169.254.169.254'])
-
-async function isAllowedUrl(raw: string): Promise<{ ok: boolean; reason?: string }> {
-  let parsed: URL
-  try { parsed = new URL(raw) } catch { return { ok: false, reason: 'Invalid URL' } }
-  if (!['http:', 'https:'].includes(parsed.protocol)) {
-    return { ok: false, reason: 'Only http/https allowed' }
-  }
-  const host = parsed.hostname.toLowerCase()
-  if (BLOCKED_HOSTS.has(host) || PRIVATE_IP.test(host)) {
-    return { ok: false, reason: 'Private/internal addresses not allowed' }
-  }
-  try {
-    const { address } = await lookup(host)
-    if (PRIVATE_IP.test(address) || address === '169.254.169.254') {
-      return { ok: false, reason: 'Resolved to a private/internal address' }
-    }
-  } catch {
-    return { ok: false, reason: 'Could not resolve hostname' }
-  }
-  return { ok: true }
-}
-
-// ── Playwright singleton ───────────────────────────────────────────────────────
-let browser: Browser | null = null
-async function getBrowser(): Promise<Browser> {
-  if (!browser || !browser.isConnected()) {
-    browser = await chromiumExtra.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] }) as unknown as Browser
-  }
-  return browser
-}
+import { SsrfBlockedError } from './ssrf.ts'
+import {
+  capturePdf,
+  captureScreenshot,
+  closeBrowser,
+  describePage,
+} from './capture.ts'
 
 // ── MCP server ─────────────────────────────────────────────────────────────────
 const server = new McpServer({
@@ -63,27 +31,23 @@ server.registerTool(
     },
   },
   async ({ url, format, width, full_page }) => {
-    const guard = await isAllowedUrl(url)
-    if (!guard.ok) {
-      return { content: [{ type: 'text' as const, text: `Error: ${guard.reason}` }], isError: true }
-    }
-
-    const b = await getBrowser()
-    const ctx = await b.newContext({ viewport: { width, height: 800 } })
-    const page = await ctx.newPage()
-
     try {
       const start = Date.now()
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 20_000 })
-      const buf = await page.screenshot({ type: format, fullPage: full_page, quality: format === 'jpeg' ? 85 : undefined })
+      const { data, mime } = await captureScreenshot({
+        url,
+        format,
+        width,
+        height: 800,
+        fullPage: full_page,
+      })
       const elapsed = Date.now() - start
 
       return {
         content: [
           {
             type: 'image' as const,
-            data: buf.toString('base64'),
-            mimeType: format === 'jpeg' ? 'image/jpeg' : 'image/png',
+            data: data.toString('base64'),
+            mimeType: mime,
           },
           {
             type: 'text' as const,
@@ -91,8 +55,11 @@ server.registerTool(
           },
         ],
       }
-    } finally {
-      await ctx.close()
+    } catch (err) {
+      if (err instanceof SsrfBlockedError) {
+        return { content: [{ type: 'text' as const, text: `Error: ${err.message}` }], isError: true }
+      }
+      throw err
     }
   }
 )
@@ -111,24 +78,8 @@ server.registerTool(
     },
   },
   async ({ url, width }) => {
-    const guard = await isAllowedUrl(url)
-    if (!guard.ok) {
-      return { content: [{ type: 'text' as const, text: `Error: ${guard.reason}` }], isError: true }
-    }
-
-    const b = await getBrowser()
-    const ctx = await b.newContext({ viewport: { width, height: 800 } })
-    const page = await ctx.newPage()
-
     try {
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 20_000 })
-
-      const [title, h1, metaDesc, buf] = await Promise.all([
-        page.title(),
-        page.$eval('h1', (el) => el.textContent?.trim() ?? '').catch(() => ''),
-        page.$eval('meta[name="description"]', (el) => el.getAttribute('content') ?? '').catch(() => ''),
-        page.screenshot({ type: 'png' }),
-      ])
+      const { title, h1, metaDesc, screenshot } = await describePage({ url, width })
 
       const summary = [
         `URL: ${url}`,
@@ -140,11 +91,14 @@ server.registerTool(
       return {
         content: [
           { type: 'text' as const, text: summary },
-          { type: 'image' as const, data: buf.toString('base64'), mimeType: 'image/png' },
+          { type: 'image' as const, data: screenshot.toString('base64'), mimeType: 'image/png' },
         ],
       }
-    } finally {
-      await ctx.close()
+    } catch (err) {
+      if (err instanceof SsrfBlockedError) {
+        return { content: [{ type: 'text' as const, text: `Error: ${err.message}` }], isError: true }
+      }
+      throw err
     }
   }
 )
@@ -159,28 +113,28 @@ server.registerTool(
     },
   },
   async ({ url }) => {
-    const guard = await isAllowedUrl(url)
-    if (!guard.ok) {
-      return { content: [{ type: 'text' as const, text: `Error: ${guard.reason}` }], isError: true }
-    }
-
-    const b = await getBrowser()
-    const ctx = await b.newContext()
-    const page = await ctx.newPage()
-
     try {
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 20_000 })
-      const buf = Buffer.from(await page.pdf({ format: 'A4', printBackground: true }))
+      const { data } = await capturePdf({ url })
 
       return {
         content: [
-          { type: 'text' as const, text: `PDF captured for ${url} (${(buf.length / 1024).toFixed(1)} KB)` },
+          { type: 'text' as const, text: `PDF captured for ${url} (${(data.length / 1024).toFixed(1)} KB)` },
           // PDF returned as base64 resource — agents can save or pass it along
-          { type: 'resource' as const, resource: { uri: `data:application/pdf;base64,${buf.toString('base64')}`, mimeType: 'application/pdf', text: `PDF of ${url}` } },
+          {
+            type: 'resource' as const,
+            resource: {
+              uri: `data:application/pdf;base64,${data.toString('base64')}`,
+              mimeType: 'application/pdf',
+              text: `PDF of ${url}`,
+            },
+          },
         ],
       }
-    } finally {
-      await ctx.close()
+    } catch (err) {
+      if (err instanceof SsrfBlockedError) {
+        return { content: [{ type: 'text' as const, text: `Error: ${err.message}` }], isError: true }
+      }
+      throw err
     }
   }
 )
@@ -188,7 +142,7 @@ server.registerTool(
 // ── Startup ────────────────────────────────────────────────────────────────────
 const transport = new StdioServerTransport()
 
-process.on('SIGTERM', async () => { await browser?.close().catch(() => {}); process.exit(0) })
-process.on('SIGINT',  async () => { await browser?.close().catch(() => {}); process.exit(0) })
+process.on('SIGTERM', async () => { await closeBrowser(); process.exit(0) })
+process.on('SIGINT', async () => { await closeBrowser(); process.exit(0) })
 
 await server.connect(transport)

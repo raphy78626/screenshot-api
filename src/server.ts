@@ -1,59 +1,27 @@
 import Fastify from 'fastify'
 import fastifyStatic from '@fastify/static'
 import rateLimit from '@fastify/rate-limit'
-import { chromium as chromiumExtra } from 'playwright-extra'
-import StealthPlugin from 'puppeteer-extra-plugin-stealth'
-import { errors as playwrightErrors, type Browser } from 'playwright'
-chromiumExtra.use(StealthPlugin())
+import { errors as playwrightErrors } from 'playwright'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { lookup } from 'node:dns/promises'
 import { appendFile } from 'node:fs/promises'
 import pLimit from 'p-limit'
 import { config } from './config.ts'
+import { isAllowedUrl, SsrfBlockedError } from './ssrf.ts'
+import {
+  capturePdf,
+  captureScreenshot,
+  closeBrowser,
+  getBrowser,
+  isBrowserConnected,
+} from './capture.ts'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const PUBLIC_DIR = resolve(__dirname, '../docs')
 
-const PRIVATE_IP = /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|0\.|::1|fc00:|fd)/i
-const BLOCKED_HOSTS = new Set(['localhost', 'metadata.google.internal', 'metadata', '169.254.169.254'])
-
-async function isAllowedUrl(raw: string): Promise<{ ok: boolean; reason?: string }> {
-  let parsed: URL
-  try {
-    parsed = new URL(raw)
-  } catch {
-    return { ok: false, reason: 'Invalid URL' }
-  }
-  if (!['http:', 'https:'].includes(parsed.protocol)) {
-    return { ok: false, reason: 'Only http/https allowed' }
-  }
-  const host = parsed.hostname.toLowerCase()
-  if (BLOCKED_HOSTS.has(host) || PRIVATE_IP.test(host)) {
-    return { ok: false, reason: 'Private/internal addresses not allowed' }
-  }
-  try {
-    const { address } = await lookup(host)
-    if (PRIVATE_IP.test(address) || address === '169.254.169.254') {
-      return { ok: false, reason: 'Resolved to a private/internal address' }
-    }
-  } catch {
-    return { ok: false, reason: 'Could not resolve hostname' }
-  }
-  return { ok: true }
-}
-
-let browser: Browser | null = null
-
-async function getBrowser(): Promise<Browser> {
-  if (!browser || !browser.isConnected()) {
-    browser = await chromiumExtra.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] }) as unknown as Browser
-  }
-  return browser
-}
-
-// ── Response cache (5 min TTL, skipped for PDF) ───────────────────────────────
+// ── Response cache (5 min TTL, bounded size, skipped for PDF) ─────────────────
 const CACHE_TTL = 5 * 60 * 1000
+const CACHE_MAX_ENTRIES = 100
 const cache = new Map<string, { buf: Buffer; mime: string; ts: number }>()
 
 function cacheKey(url: string, fmt: string, w: number, h: number, full: boolean) {
@@ -63,8 +31,19 @@ function cacheKey(url: string, fmt: string, w: number, h: number, full: boolean)
 function cacheGet(key: string) {
   const hit = cache.get(key)
   if (!hit) return null
-  if (Date.now() - hit.ts > CACHE_TTL) { cache.delete(key); return null }
+  if (Date.now() - hit.ts > CACHE_TTL) {
+    cache.delete(key)
+    return null
+  }
   return hit
+}
+
+function cacheSet(key: string, entry: { buf: Buffer; mime: string; ts: number }) {
+  if (cache.size >= CACHE_MAX_ENTRIES && !cache.has(key)) {
+    const oldestKey = cache.keys().next().value
+    if (oldestKey !== undefined) cache.delete(oldestKey)
+  }
+  cache.set(key, entry)
 }
 
 setInterval(() => {
@@ -104,7 +83,7 @@ export async function buildApp(overrides?: Partial<typeof config>) {
   app.addHook('onRequest', async (req, reply) => {
     if (!cfg.proxySecret) return
     const pub = ['/health', '/', '/waitlist']
-    if (pub.some(p => req.url === p || req.url.startsWith(p + '?'))) return
+    if (pub.some((p) => req.url === p || req.url.startsWith(p + '?'))) return
     const secret =
       req.headers['x-rapidapi-proxy-secret'] ?? req.headers['x-proxy-secret']
     if (secret !== cfg.proxySecret) {
@@ -114,7 +93,7 @@ export async function buildApp(overrides?: Partial<typeof config>) {
 
   app.get('/health', async () => ({
     status: 'ok',
-    browserConnected: browser?.isConnected() ?? false,
+    browserConnected: isBrowserConnected(),
   }))
 
   app.get('/.well-known/mcp/server-card.json', async (_, reply) => {
@@ -170,38 +149,37 @@ export async function buildApp(overrides?: Partial<typeof config>) {
 
     return limit(async () => {
       const start = Date.now()
-      const b = await getBrowser()
-      const ctx = await b.newContext({ viewport: { width: vpWidth, height: vpHeight } })
-      const page = await ctx.newPage()
-      try {
-        await page.goto(url, { waitUntil: 'networkidle', timeout: cfg.navTimeoutMs })
+      const { data, mime } =
+        fmt === 'pdf'
+          ? await capturePdf({
+              url,
+              width: vpWidth,
+              height: vpHeight,
+              navTimeoutMs: cfg.navTimeoutMs,
+            })
+          : await captureScreenshot({
+              url,
+              format: fmt,
+              width: vpWidth,
+              height: vpHeight,
+              fullPage,
+              navTimeoutMs: cfg.navTimeoutMs,
+            })
 
-        let data: Buffer
-        let mime: string
+      if (key) cacheSet(key, { buf: data, mime, ts: Date.now() })
 
-        if (fmt === 'pdf') {
-          data = Buffer.from(await page.pdf({ format: 'A4', printBackground: true }))
-          mime = 'application/pdf'
-        } else {
-          data = Buffer.from(
-            await page.screenshot({ type: fmt, fullPage, quality: fmt === 'jpeg' ? 85 : undefined })
-          )
-          mime = fmt === 'jpeg' ? 'image/jpeg' : 'image/png'
-          if (key) cache.set(key, { buf: data, mime, ts: Date.now() })
-        }
-
-        reply.header('Content-Type', mime)
-        reply.header('X-Capture-Ms', String(Date.now() - start))
-        reply.header('X-Cache', 'MISS')
-        reply.header('Access-Control-Allow-Origin', '*')
-        return reply.send(data)
-      } finally {
-        await ctx.close()
-      }
+      reply.header('Content-Type', mime)
+      reply.header('X-Capture-Ms', String(Date.now() - start))
+      reply.header('X-Cache', 'MISS')
+      reply.header('Access-Control-Allow-Origin', '*')
+      return reply.send(data)
     })
   })
 
   app.setErrorHandler((err, req, reply) => {
+    if (err instanceof SsrfBlockedError) {
+      return reply.status(400).send({ error: err.message })
+    }
     req.log.error({ err }, 'request failed')
     if (err instanceof playwrightErrors.TimeoutError) {
       return reply.status(504).send({ error: 'Target page timed out' })
@@ -225,7 +203,7 @@ if (isMain) {
     process.on(sig, async () => {
       app.log.info({ sig }, 'shutting down')
       await app.close()
-      await browser?.close().catch(() => {})
+      await closeBrowser()
       process.exit(0)
     })
   }
